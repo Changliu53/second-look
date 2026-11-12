@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { getLimits, getModelName, requireEnv } from "@/lib/env";
 import { clientIpFromHeaders, hashClientIp } from "@/lib/rate-limit";
-import { handlePasteRequest } from "@/paste/handle-paste";
+import { handlePasteRequest, type PasteDeps } from "@/paste/handle-paste";
 import { AnthropicReviewModel } from "@/review/anthropic-model";
 
 // A review is one model call that can take a minute or more.
@@ -16,17 +16,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const callerKey = hashClientIp(
-    clientIpFromHeaders(request.headers),
-    requireEnv("AUTH_SECRET"),
-  );
+  let deps: PasteDeps;
+  try {
+    deps = {
+      db: getDb(),
+      model: new AnthropicReviewModel(getModelName()),
+      limits: getLimits(),
+      callerKey: hashClientIp(
+        clientIpFromHeaders(request.headers),
+        requireEnv("AUTH_SECRET"),
+      ),
+    };
+  } catch {
+    // A required env var is missing. Say so without naming it to the caller.
+    return NextResponse.json(
+      { error: "Paste mode is not configured on this server." },
+      { status: 503 },
+    );
+  }
 
-  const response = await handlePasteRequest(rawBody, {
-    db: getDb(),
-    model: new AnthropicReviewModel(getModelName()),
-    limits: getLimits(),
-    callerKey,
-  });
+  const response = await handlePasteRequest(rawBody, deps);
 
   const headers = new Headers();
   if (response.httpStatus !== 200 && response.retryAfterSeconds !== undefined) {

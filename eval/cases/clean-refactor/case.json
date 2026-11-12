@@ -1,0 +1,6 @@
+{
+  "title": "Rename variables in cartTotal",
+  "description": "Renames short variable names to readable ones. No behavior change.",
+  "plantedBug": null,
+  "expected": []
+}

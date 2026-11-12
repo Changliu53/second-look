@@ -1,0 +1,16 @@
+diff --git a/src/api/users.ts b/src/api/users.ts
+index ef3cc39..5b1e190 100644
+--- a/src/api/users.ts
++++ b/src/api/users.ts
+@@ -5,3 +5,11 @@ export async function listUsers(_req: Request, res: Response) {
+   const result = await db.query("SELECT id, email, name FROM users LIMIT 100");
+   res.json(result.rows);
+ }
++
++export async function searchUsers(req: Request, res: Response) {
++  const email = String(req.query.email ?? "");
++  const result = await db.query(
++    "SELECT id, email, name FROM users WHERE email LIKE '%" + email + "%'",
++  );
++  res.json(result.rows);
++}

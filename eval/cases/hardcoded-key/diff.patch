@@ -1,0 +1,22 @@
+diff --git a/src/email/send.ts b/src/email/send.ts
+new file mode 100644
+index 0000000..dd16170
+--- /dev/null
++++ b/src/email/send.ts
+@@ -0,0 +1,16 @@
++const MAILER_URL = "https://api.mailer.example.com/v2/send";
++const MAILER_API_KEY = "mlr_live_9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c";
++
++export async function sendEmail(to: string, subject: string, body: string) {
++  const response = await fetch(MAILER_URL, {
++    method: "POST",
++    headers: {
++      Authorization: `Bearer ${MAILER_API_KEY}`,
++      "Content-Type": "application/json",
++    },
++    body: JSON.stringify({ to, subject, body }),
++  });
++  if (!response.ok) {
++    throw new Error(`Mailer responded with ${response.status}`);
++  }
++}

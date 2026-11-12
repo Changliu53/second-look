@@ -1,0 +1,25 @@
+diff --git a/src/auth/session.ts b/src/auth/session.ts
+index afcd7ce..7cf257a 100644
+--- a/src/auth/session.ts
++++ b/src/auth/session.ts
+@@ -1,6 +1,6 @@
+ import { verifyToken } from "./tokens";
+ 
+-const SESSION_MAX_AGE_SECONDS = 60 * 60;
++const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+ 
+ export function isSessionValid(token: string, issuedAt: number): boolean {
+   const ageSeconds = (Date.now() - issuedAt) / 1000;
+diff --git a/src/components/Footer.tsx b/src/components/Footer.tsx
+index f8d176b..1763692 100644
+--- a/src/components/Footer.tsx
++++ b/src/components/Footer.tsx
+@@ -1,7 +1,7 @@
+ export function Footer() {
+   return (
+     <footer className="footer">
+-      <p>Copyright 2025 Acme Tools. All rights reserved.</p>
++      <p>Copyright 2026 Acme Tools. All rights reserved.</p>
+     </footer>
+   );
+ }

@@ -1,0 +1,9 @@
+{
+  "title": "Update footer copyright year",
+  "description": "Changes the year in the footer from 2025 to 2026.",
+  "plantedBug": "The PR also changes the session lifetime from one hour to one year, which is unrelated to the footer.",
+  "expected": [
+    { "file": "src/auth/session.ts", "startLine": 3, "endLine": 3, "categories": ["scope-creep", "security", "logic"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

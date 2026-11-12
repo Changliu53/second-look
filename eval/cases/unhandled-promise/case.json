@@ -1,0 +1,9 @@
+{
+  "title": "Sync orders from the shop every minute",
+  "description": "Adds a background job that pulls orders from the shop API and saves them.",
+  "plantedBug": "syncOrders() is called without await or catch, and the fetch has no error handling. One network failure is an unhandled rejection.",
+  "expected": [
+    { "file": "src/jobs/sync-orders.ts", "startLine": 5, "endLine": 14, "categories": ["error-handling", "bug"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

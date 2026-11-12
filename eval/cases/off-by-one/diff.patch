@@ -1,0 +1,17 @@
+diff --git a/src/reports/top-customers.ts b/src/reports/top-customers.ts
+index 3d94ac0..71a833b 100644
+--- a/src/reports/top-customers.ts
++++ b/src/reports/top-customers.ts
+@@ -7,3 +7,12 @@ export function sortBySpend(customers: Customer[]): Customer[] {
+ export function topCustomers(customers: Customer[]): Customer[] {
+   return sortBySpend(customers).slice(0, 10);
+ }
++
++export function topCustomerNames(customers: Customer[]): string[] {
++  const sorted = sortBySpend(customers);
++  const names: string[] = [];
++  for (let i = 0; i <= sorted.length; i++) {
++    names.push(sorted[i].name.toUpperCase());
++  }
++  return names;
++}

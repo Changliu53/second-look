@@ -1,0 +1,9 @@
+{
+  "title": "Add invoice total formatting",
+  "description": "Adds a helper that shows the invoice total as a dollar amount.",
+  "plantedBug": "lodash has no formatCurrency function.",
+  "expected": [
+    { "file": "src/invoice/format.ts", "startLine": 15, "endLine": 15, "categories": ["hallucinated-api", "bug"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

@@ -1,0 +1,9 @@
+{
+  "title": "Add email sending helper",
+  "description": "Adds a function to send emails through our mail provider.",
+  "plantedBug": "A live API key is hardcoded in the source file.",
+  "expected": [
+    { "file": "src/email/send.ts", "startLine": 2, "endLine": 2, "categories": ["security"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

@@ -1,0 +1,9 @@
+{
+  "title": "Add welcome greeting",
+  "description": "Shows 'Welcome back, <name>!' for a user.",
+  "plantedBug": "findUser can return null and profile can be null, but both are forced with a cast and '!'. A missing user crashes the request.",
+  "expected": [
+    { "file": "src/profile/greeting.ts", "startLine": 14, "endLine": 15, "categories": ["bug", "error-handling", "logic"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

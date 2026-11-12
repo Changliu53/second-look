@@ -1,0 +1,36 @@
+diff --git a/src/utils/slugify.test.ts b/src/utils/slugify.test.ts
+new file mode 100644
+index 0000000..6175a88
+--- /dev/null
++++ b/src/utils/slugify.test.ts
+@@ -0,0 +1,16 @@
++import { describe, expect, it } from "vitest";
++import { slugify } from "./slugify";
++
++describe("slugify", () => {
++  it("lowercases and joins words with dashes", () => {
++    expect(slugify("Hello, World!")).toBe("hello-world");
++  });
++
++  it("trims dashes from both ends", () => {
++    expect(slugify("  --Already Slugged--  ")).toBe("already-slugged");
++  });
++
++  it("returns an empty string for input with no letters or digits", () => {
++    expect(slugify("!!!")).toBe("");
++  });
++});
+diff --git a/src/utils/slugify.ts b/src/utils/slugify.ts
+new file mode 100644
+index 0000000..4b008a9
+--- /dev/null
++++ b/src/utils/slugify.ts
+@@ -0,0 +1,8 @@
++/** Turns a title into a URL-safe slug: "Hello, World!" becomes "hello-world". */
++export function slugify(title: string): string {
++  return title
++    .toLowerCase()
++    .trim()
++    .replace(/[^a-z0-9]+/g, "-")
++    .replace(/^-+|-+$/g, "");
++}

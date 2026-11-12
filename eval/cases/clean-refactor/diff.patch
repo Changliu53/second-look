@@ -1,0 +1,18 @@
+diff --git a/src/cart/total.ts b/src/cart/total.ts
+index 0cccf02..63b58bc 100644
+--- a/src/cart/total.ts
++++ b/src/cart/total.ts
+@@ -1,9 +1,9 @@
+ type CartItem = { price: number; quantity: number };
+ 
+ export function cartTotal(items: CartItem[]): number {
+-  let t = 0;
+-  for (const i of items) {
+-    t += i.price * i.quantity;
++  let total = 0;
++  for (const item of items) {
++    total += item.price * item.quantity;
+   }
+-  return t;
++  return total;
+ }

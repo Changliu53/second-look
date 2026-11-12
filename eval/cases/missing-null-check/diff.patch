@@ -1,0 +1,13 @@
+diff --git a/src/profile/greeting.ts b/src/profile/greeting.ts
+index ddecacd..5fe407e 100644
+--- a/src/profile/greeting.ts
++++ b/src/profile/greeting.ts
+@@ -9,3 +9,8 @@ export async function findUser(id: string): Promise<User | null> {
+   const rows = await db.query<User>("SELECT * FROM users WHERE id = $1", [id]);
+   return rows[0] ?? null;
+ }
++
++export async function greetingFor(id: string): Promise<string> {
++  const user = (await findUser(id)) as User;
++  return "Welcome back, " + user.profile!.displayName + "!";
++}

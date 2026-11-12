@@ -1,0 +1,6 @@
+{
+  "title": "Add slugify helper",
+  "description": "Adds a small function that turns a title into a URL slug, with tests.",
+  "plantedBug": null,
+  "expected": []
+}

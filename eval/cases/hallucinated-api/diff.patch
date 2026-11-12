@@ -1,0 +1,22 @@
+diff --git a/src/invoice/format.ts b/src/invoice/format.ts
+new file mode 100644
+index 0000000..2eafe04
+--- /dev/null
++++ b/src/invoice/format.ts
+@@ -0,0 +1,16 @@
++import _ from "lodash";
++
++export type LineItem = {
++  name: string;
++  quantity: number;
++  unitPrice: number;
++};
++
++export function invoiceTotal(items: LineItem[]): number {
++  return _.sumBy(items, (item) => item.quantity * item.unitPrice);
++}
++
++export function formatInvoiceTotal(items: LineItem[]): string {
++  const total = invoiceTotal(items);
++  return _.formatCurrency(total, { currency: "USD", locale: "en-US" });
++}

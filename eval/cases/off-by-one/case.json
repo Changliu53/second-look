@@ -1,0 +1,9 @@
+{
+  "title": "Add list of top customer names",
+  "description": "New function that returns the names of customers sorted by spend, in upper case.",
+  "plantedBug": "Loop uses <= so it reads one element past the end and crashes on undefined.",
+  "expected": [
+    { "file": "src/reports/top-customers.ts", "startLine": 14, "endLine": 15, "categories": ["bug", "logic"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

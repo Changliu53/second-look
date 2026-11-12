@@ -1,0 +1,9 @@
+{
+  "title": "Add user search by email",
+  "description": "Adds an endpoint to search users by part of their email address.",
+  "plantedBug": "User input is concatenated into the SQL string (SQL injection).",
+  "expected": [
+    { "file": "src/api/users.ts", "startLine": 11, "endLine": 14, "categories": ["security"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

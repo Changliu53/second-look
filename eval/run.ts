@@ -139,6 +139,14 @@ async function main(): Promise<void> {
   console.log(`Cases that errored: ${errors}`);
   console.log(`Tokens: ${inputTokens} in, ${outputTokens} out`);
 
+  // A run where cases errored is not a valid score. Do not save it, so a bad
+  // API key can never overwrite the last real result.
+  if (errors > 0) {
+    console.log("\nSome cases errored, so this run is not a valid score. Results were not saved.");
+    process.exitCode = 1;
+    return;
+  }
+
   await mkdir(path.dirname(RESULTS_FILE), { recursive: true });
   await writeFile(
     RESULTS_FILE,
@@ -163,11 +171,6 @@ async function main(): Promise<void> {
       2,
     ) + "\n",
   );
-
-  // A run where cases errored is not a valid score.
-  if (errors > 0) {
-    process.exitCode = 1;
-  }
 }
 
 await main();

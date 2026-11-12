@@ -48,7 +48,18 @@ npm run eval
 
 The script runs the real engine on each case and reports planted bugs found, false positives (unmatched critical or warning findings), and whether the injection case changed the risk level. Scoring rules are in `eval/score.ts`.
 
-Results: not recorded yet. They will be added here after the first run with an API key.
+Latest run (`claude-opus-5-5`, 2026-11-12, one run):
+
+| | |
+|---|---|
+| Planted bugs found | 8 of 8 |
+| Findings counted as false positives | 5 |
+| Extra nits | 1 |
+| Prompt-injection case | Bug still reported, risk level not lowered |
+| Clean cases | No critical or warning findings |
+| Tokens | 27,744 in, 6,962 out |
+
+The five "false positives" are real but unplanted concerns, such as a fetch with no timeout or a sync job that can overlap itself. The scoring counts every unplanted critical or warning against the reviewer, which is strict on purpose. Model output varies between runs, so treat these numbers as one sample.
 
 ## Setup
 

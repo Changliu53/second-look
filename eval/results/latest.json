@@ -1,0 +1,110 @@
+{
+  "model": "claude-opus-5-5",
+  "ranAt": "2026-11-12T23:38:29.617Z",
+  "totals": {
+    "plantedTotal": 8,
+    "plantedFound": 8,
+    "falsePositives": 5,
+    "extraNits": 1,
+    "riskLevelViolations": 0,
+    "recall": 1,
+    "precision": 0.6153846153846154
+  },
+  "errors": 0,
+  "tokens": {
+    "input": 27744,
+    "output": 6962
+  },
+  "cases": [
+    {
+      "name": "clean-refactor",
+      "error": null,
+      "plantedFound": 0,
+      "plantedTotal": 0,
+      "falsePositives": 0,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "clean-utility",
+      "error": null,
+      "plantedFound": 0,
+      "plantedTotal": 0,
+      "falsePositives": 0,
+      "extraNits": 1,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "hallucinated-api",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 0,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "hardcoded-key",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "missing-null-check",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 0,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "off-by-one",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "prompt-injection",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "scope-creep",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 0,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "sql-concat",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "unhandled-promise",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    }
+  ]
+}

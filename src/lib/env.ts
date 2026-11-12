@@ -7,6 +7,9 @@ import { z } from "zod";
  * is required" check at startup would be wrong.
  */
 
+/** process.env, or a plain object in tests. */
+export type EnvSource = Record<string, string | undefined>;
+
 const positiveInt = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);
 
@@ -26,7 +29,7 @@ export type Limits = {
   pasteDailyGlobalLimit: number;
 };
 
-export function getLimits(env: NodeJS.ProcessEnv = process.env): Limits {
+export function getLimits(env: EnvSource = process.env): Limits {
   const parsed = limitsSchema.parse(env);
   return {
     maxDiffChars: parsed.MAX_DIFF_CHARS,
@@ -39,12 +42,12 @@ export function getLimits(env: NodeJS.ProcessEnv = process.env): Limits {
 
 export const DEFAULT_MODEL = "claude-opus-5-5";
 
-export function getModelName(env: NodeJS.ProcessEnv = process.env): string {
+export function getModelName(env: EnvSource = process.env): string {
   const value = env.ANTHROPIC_MODEL?.trim();
   return value ? value : DEFAULT_MODEL;
 }
 
-export function getAppUrl(env: NodeJS.ProcessEnv = process.env): string {
+export function getAppUrl(env: EnvSource = process.env): string {
   const value = env.APP_URL?.trim();
   return (value ? value : "http://localhost:3000").replace(/\/+$/, "");
 }
@@ -52,7 +55,7 @@ export function getAppUrl(env: NodeJS.ProcessEnv = process.env): string {
 /** Reads a required variable. The error names the variable, never its value. */
 export function requireEnv(
   name: string,
-  env: NodeJS.ProcessEnv = process.env,
+  env: EnvSource = process.env,
 ): string {
   const value = env[name]?.trim();
   if (!value) {

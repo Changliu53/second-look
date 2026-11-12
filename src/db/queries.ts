@@ -395,18 +395,44 @@ export async function editFinding(
     .where(eq(findings.id, findingId));
 }
 
-export async function markReviewPublished(
+/**
+ * Claims a review for publishing. Returns false if someone already did.
+ *
+ * The claim is one conditional UPDATE, so two reviewers clicking "Publish" at
+ * the same moment cannot both post a review to GitHub. If posting then fails,
+ * the caller releases the claim with releasePublishClaim.
+ */
+export async function claimReviewForPublish(
   db: Database,
   reviewId: number,
-  input: {
-    publishedBy: string;
-    githubReviewId: number;
-    reviewerNote: string | null;
-  },
+  input: { publishedBy: string; reviewerNote: string | null },
+): Promise<boolean> {
+  const rows = await db
+    .update(reviews)
+    .set({ ...input, publishedAt: new Date() })
+    .where(and(eq(reviews.id, reviewId), isNull(reviews.publishedAt)))
+    .returning({ id: reviews.id });
+  return rows.length === 1;
+}
+
+export async function releasePublishClaim(
+  db: Database,
+  reviewId: number,
 ): Promise<void> {
   await db
     .update(reviews)
-    .set({ ...input, publishedAt: new Date() })
+    .set({ publishedAt: null, publishedBy: null, reviewerNote: null })
+    .where(eq(reviews.id, reviewId));
+}
+
+export async function recordGithubReviewId(
+  db: Database,
+  reviewId: number,
+  githubReviewId: number,
+): Promise<void> {
+  await db
+    .update(reviews)
+    .set({ githubReviewId })
     .where(eq(reviews.id, reviewId));
 }
 

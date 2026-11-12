@@ -9,7 +9,8 @@ import {
   failReview,
   getReviewDetail,
   listOpenReviews,
-  markReviewPublished,
+  claimReviewForPublish,
+  releasePublishClaim,
   recordPasteReview,
   STALE_REVIEW_MS,
   startGithubReview,
@@ -101,9 +102,7 @@ describe("startGithubReview", () => {
     const { pullRequest } = await seedPullRequest(db);
     const old = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
     await completeReview(db, old.review.id, completedResult(0));
-    await markReviewPublished(db, old.review.id, {
-      publishedBy: "lee", githubReviewId: 99, reviewerNote: null,
-    });
+    await claimReviewForPublish(db, old.review.id, { publishedBy: "lee", reviewerNote: null });
 
     await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-2" });
 
@@ -225,8 +224,32 @@ describe("review lifecycle", () => {
     expect(open[0]).toMatchObject({ pendingCount: 2, confirmedCount: 1 });
     expect(open[0]?.repository.name).toBe("shop");
 
-    await markReviewPublished(db, review.id, { publishedBy: "lee", githubReviewId: 5, reviewerNote: "LGTM after fixes" });
+    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "LGTM after fixes" });
     expect(await listOpenReviews(db)).toEqual([]);
+  });
+
+  it("lets only the first of two publish attempts claim the review", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(0));
+
+    const first = await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: null });
+    const second = await claimReviewForPublish(db, review.id, { publishedBy: "kim", reviewerNote: null });
+
+    expect([first, second]).toEqual([true, false]);
+    expect((await getReviewDetail(db, review.id))?.review.publishedBy).toBe("lee");
+  });
+
+  it("makes a review publishable again after a released claim", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(0));
+    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "note" });
+
+    await releasePublishClaim(db, review.id);
+
+    expect(await listOpenReviews(db)).toHaveLength(1);
+    expect(await claimReviewForPublish(db, review.id, { publishedBy: "kim", reviewerNote: null })).toBe(true);
   });
 });
 

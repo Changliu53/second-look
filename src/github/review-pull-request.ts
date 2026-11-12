@@ -12,6 +12,7 @@ import { parseUnifiedDiff } from "@/review/diff";
 import { reviewChange, type ReviewLimits, type ReviewModel } from "@/review/engine";
 import { getSkipReason } from "@/review/filters";
 import type { FileContext } from "@/review/prompt";
+import { canReviewRepository } from "@/dashboard/access";
 import { checkRunFor, type CheckState } from "./check-run";
 import type { GitHubClient, RepoRef } from "./client";
 import type { PullRequestEvent } from "./webhook-payload";
@@ -108,6 +109,15 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
   const repo: RepoRef = { owner: event.repository.owner.login, name: event.repository.name };
   const headSha = event.pull_request.head.sha;
 
+  // Cost guard for public repositories: anyone can open a pull request from a
+  // fork, and every review is a paid model call. Only authors who can already
+  // write to the repository get an automatic review.
+  const authorLogin = event.pull_request.user.login;
+  if (!(await canReviewRepository(deps.github, repo, authorLogin))) {
+    logEvent("review_skipped_outside_author", { pullNumber: event.number });
+    return;
+  }
+
   const repository = await upsertRepository(deps.db, {
     githubRepoId: event.repository.id,
     installationId: event.installation.id,
@@ -118,7 +128,7 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
     repositoryId: repository.id,
     number: event.number,
     title: event.pull_request.title,
-    authorLogin: event.pull_request.user.login,
+    authorLogin,
     headSha,
   });
 

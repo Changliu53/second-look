@@ -2,6 +2,8 @@
 
 In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look does the first pass on each pull request, and the engineer confirms or rejects every finding before the author sees anything.
 
+Try it without installing anything: https://second-look-review.vercel.app/paste
+
 <!-- Screenshot: add docs/dashboard.png once the app is deployed. -->
 
 ## How it works
@@ -94,4 +96,5 @@ Design choices and the alternatives that were rejected are in [DECISIONS.md](DEC
 - The prompt-injection defence lowers the risk and does not remove it. A human confirms every finding for that reason.
 - A reviewer cannot add their own findings in the dashboard yet.
 - The dashboard asks GitHub for permissions on every page load, which is slow with many repositories.
+- Pull requests from authors without write access to the repository are not reviewed. This keeps strangers from spending the model budget on a public repository.
 - The eval is ten cases. It catches regressions; it is not a benchmark.

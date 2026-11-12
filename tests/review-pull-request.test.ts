@@ -63,6 +63,7 @@ beforeEach(async () => {
   db = await createTestDb();
   github = new FakeGitHub();
   github.diff = DIFF;
+  github.permissions.set("sam", "write");
 });
 
 describe("reviewPullRequest", () => {
@@ -166,6 +167,17 @@ describe("reviewPullRequest", () => {
     expect(detail.review.status).toBe("completed");
     expect(detail.review.checkRunId).toBeNull();
     expect(github.checkRunUpdates).toEqual([]);
+  });
+
+  it("does not spend a review on a pull request from an author without write access", async () => {
+    github.permissions.set("sam", "read");
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });
+
+    await reviewPullRequest(event(), deps(model));
+
+    expect(model.prompts).toHaveLength(0);
+    expect(github.checkRuns).toEqual([]);
+    expect(await listOpenReviews(db)).toEqual([]);
   });
 
   it("stores a too-large review without calling the model", async () => {

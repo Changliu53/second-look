@@ -41,7 +41,7 @@ Deploy before creating the GitHub App, because the App needs the public URL.
 1. Go to https://vercel.com/new and import the `second-look` repository.
 2. Framework preset: **Next.js**. Leave build settings as they are.
 3. Open **Environment Variables** and add `DATABASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, and `AUTH_SECRET` with the values from `.env.local`.
-4. Click **Deploy**. When it finishes, note the production URL, for example `https://second-look-abc.vercel.app`. The home page and paste mode work at this point.
+4. Click **Deploy**. When it finishes, note the production URL, for example `https://second-look-review.vercel.app`. The home page and paste mode work at this point.
 5. In the project's **Settings**, **Functions**, confirm **Fluid compute** is on (it is the default for new projects). The review needs up to 300 seconds.
 
 ## 5. GitHub App

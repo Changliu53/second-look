@@ -118,3 +118,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What:** A planted bug is found when a finding matches its file, overlaps its lines (within 1), and has an accepted category. A false positive is an unmatched critical or warning. Unmatched nits are reported separately. Two of the ten cases are clean code.
 **Why:** Without clean cases, a reviewer that flags everything would score well. The output says "recall" and "precision" because "false positive rate" is used loosely for several different numbers.
 **Rejected:** Asking a second model to judge the findings. Harder to reproduce and to explain.
+
+## 23. Only authors with write access get an automatic review
+**What:** The webhook handler asks GitHub for the PR author's permission and skips the review unless it is `write` or `admin`.
+**Why:** The repository is public. Anyone can open a pull request from a fork, and each review is a paid model call, so an open webhook is a way to spend the owner's money. In the intended setting (a team's own repository) every author has write access, so nothing changes for them.
+**Rejected:** Reviewing everything and relying on a spend limit at the model provider. That caps the damage but still lets strangers use up the budget.
+**Cost:** Outside contributors get no review and no check run. A maintainer cannot trigger one for them yet.

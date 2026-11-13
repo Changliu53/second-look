@@ -34,19 +34,19 @@ public class WorkOrdersController : ControllerBase
     public async Task<List<WorkOrder>> Search([FromQuery] string customer, CancellationToken ct)
     {
         return await _db.WorkOrders
-            .IgnoreQueryFilters()
-            .Where(w => w.CustomerName.Contains(customer))
+            .Where(w => w.TenantId == _tenant.TenantId && w.CustomerName.Contains(customer))
             .OrderByDescending(w => w.ScheduledFor)
             .ToListAsync(ct);
     }
 
     [HttpPost("{id}/close")]
-    public async Task<IActionResult> Close(int id, [FromBody] CloseRequest request, CancellationToken ct)
+    [Authorize(Policy = "WorkOrders.Write")]
+    public async Task<IActionResult> Close(int id, CancellationToken ct)
     {
-        var workOrder = await _db.WorkOrders.FirstAsync(w => w.Id == id, ct);
+        var workOrder = await _db.WorkOrders.FirstAsync(w => w.TenantId == _tenant.TenantId && w.Id == id, ct);
         workOrder.Status = WorkOrderStatus.Closed;
-        workOrder.ClosedBy = request.ClosedBy;
-        workOrder.ClosedAt = DateTime.Now;
+        workOrder.ClosedBy = User.Identity!.Name;
+        workOrder.ClosedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return Ok(workOrder);
     }
@@ -60,5 +60,3 @@ public class WorkOrdersController : ControllerBase
         return NoContent();
     }
 }
-
-public record CloseRequest(string ClosedBy);

@@ -10,16 +10,10 @@ namespace Platform.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
+            migrationBuilder.RenameColumn(
                 name: "Phone",
-                table: "Customers");
-
-            migrationBuilder.AddColumn<string>(
-                name: "PrimaryPhone",
                 table: "Customers",
-                type: "nvarchar(32)",
-                maxLength: 32,
-                nullable: true);
+                newName: "PrimaryPhone");
 
             migrationBuilder.AddColumn<int>(
                 name: "ServiceRegionId",
@@ -48,16 +42,10 @@ namespace Platform.Data.Migrations
                 name: "ServiceRegionId",
                 table: "Wells");
 
-            migrationBuilder.DropColumn(
+            migrationBuilder.RenameColumn(
                 name: "PrimaryPhone",
-                table: "Customers");
-
-            migrationBuilder.AddColumn<string>(
-                name: "Phone",
                 table: "Customers",
-                type: "nvarchar(32)",
-                maxLength: 32,
-                nullable: true);
+                newName: "Phone");
         }
     }
 }

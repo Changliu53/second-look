@@ -66,12 +66,32 @@ export function DiffFile({
   renderFinding,
   plain = false,
   title,
+  skippedAs,
 }: {
   file: FileView;
   renderFinding: RenderFinding;
   plain?: boolean;
   title?: string;
+  /** Set for files the AI did not review, which start folded away. */
+  skippedAs?: string;
 }) {
+  if (skippedAs) {
+    return (
+      <details className="mt-5 overflow-hidden rounded-lg border border-edge bg-surface-raised">
+        <summary className="flex cursor-pointer items-center gap-2 bg-slate-50 px-3 py-2 font-mono text-xs">
+          <span className="break-all">{file.path}</span>
+          <span className="font-sans text-ink-soft">
+            {skippedAs} file, not reviewed. Click to show.
+          </span>
+        </summary>
+        <div className="border-t border-edge font-mono text-xs leading-5">
+          {file.rows.map((row, index) => (
+            <Row key={index} row={row} plain={false} renderFinding={renderFinding} />
+          ))}
+        </div>
+      </details>
+    );
+  }
   return (
     <section className="mt-5 overflow-hidden rounded-lg border border-edge bg-surface-raised">
       <h3 className="flex items-center gap-2 border-b border-edge bg-slate-50 px-3 py-2 font-mono text-xs font-medium">

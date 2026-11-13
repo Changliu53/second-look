@@ -93,9 +93,17 @@ export async function publishReviewAction(formData: FormData): Promise<void> {
   const login = await requireLogin();
   const reviewId = idSchema.parse(formData.get("reviewId"));
   const note = formData.get("note");
+  const resolution =
+    formData.get("resolution") === "reviewer_takes_over" ? "reviewer_takes_over" : "author_fixes";
   finish(
     reviewId,
-    await publishReviewFor(reviewId, typeof note === "string" ? note : null, login, dashboardDeps()),
+    await publishReviewFor(
+      reviewId,
+      typeof note === "string" ? note : null,
+      login,
+      dashboardDeps(),
+      resolution,
+    ),
   );
 }
 

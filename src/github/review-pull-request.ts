@@ -2,6 +2,7 @@ import type { Database } from "@/db/client";
 import {
   completeReview,
   failReview,
+  getEarlierDecisions,
   setCheckRunId,
   setReviewStage,
   startGithubReview,
@@ -19,8 +20,10 @@ import {
   type ReviewResult,
 } from "@/review/engine";
 import { getSkipReason } from "@/review/filters";
-import type { ReviewStage } from "@/db/schema";
-import type { FileContext } from "@/review/prompt";
+import type { Finding, FollowUpEntry, ReviewStage } from "@/db/schema";
+import type { EarlierFinding, EarlierReview, FileContext } from "@/review/prompt";
+import type { FollowUp } from "@/review/schema";
+import { publishedText } from "./publish";
 import { canReviewRepository } from "./access";
 import { checkRunFor, type CheckState } from "./check-run";
 import { DiffTooLargeError, type GitHubClient, type RepoRef } from "./client";
@@ -109,6 +112,52 @@ async function createCheck(
   }
 }
 
+function toEarlierFinding(prefix: string, finding: Finding): EarlierFinding {
+  return {
+    id: `${prefix}${finding.id}`,
+    file: finding.filePath,
+    startLine: finding.startLine,
+    endLine: finding.endLine,
+    // What the author actually received: the reviewer's edit if there was one.
+    explanation: publishedText(finding).explanation,
+  };
+}
+
+const CONFIRMED_PREFIX = "P";
+const REJECTED_PREFIX = "R";
+
+/** Turns the last review's decisions into what the prompt needs. */
+export function toEarlierReview(confirmed: Finding[], rejected: Finding[]): EarlierReview {
+  return {
+    confirmed: confirmed.map((finding) => toEarlierFinding(CONFIRMED_PREFIX, finding)),
+    rejected: rejected.map((finding) => ({
+      ...toEarlierFinding(REJECTED_PREFIX, finding),
+      reason: finding.rejectionReason,
+    })),
+  };
+}
+
+/** Joins the model's verdicts back to the earlier findings they are about. */
+export function toFollowUpEntries(verdicts: FollowUp[], confirmed: Finding[]): FollowUpEntry[] {
+  const entries: FollowUpEntry[] = [];
+  for (const finding of confirmed) {
+    const verdict = verdicts.find((entry) => entry.id === `${CONFIRMED_PREFIX}${finding.id}`);
+    if (!verdict) {
+      continue;
+    }
+    entries.push({
+      previousFindingId: finding.id,
+      status: verdict.status,
+      note: verdict.note,
+      filePath: finding.filePath,
+      startLine: finding.startLine,
+      severity: finding.severity,
+      explanation: publishedText(finding).explanation,
+    });
+  }
+  return entries;
+}
+
 /**
  * Gathers the inputs from GitHub and runs the engine. `onStage` is told as
  * each step starts, so the dashboard can show progress while this runs.
@@ -117,6 +166,7 @@ async function runReview(
   event: PullRequestEvent,
   repo: RepoRef,
   deps: ReviewDeps,
+  earlier: EarlierReview | undefined,
   onStage: (stage: ReviewStage) => Promise<void>,
 ): Promise<ReviewResult> {
   await onStage("fetching_diff");
@@ -152,6 +202,7 @@ async function runReview(
     description: event.pull_request.body ?? undefined,
     fileContents,
     guidelines: guidelines ?? undefined,
+    earlier,
   };
   await onStage("model_reviewing");
   return reviewChange(input, deps.model, deps.limits);
@@ -201,11 +252,19 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
   const checkRunId = await createCheck(deps, repo, headSha, review.id);
 
   try {
-    const result = await runReview(event, repo, deps, (stage) =>
+    // If a reviewer already went through this pull request at an earlier
+    // commit, carry their decisions into this review.
+    const decisions = await getEarlierDecisions(deps.db, pullRequest.id, headSha);
+    const earlier = decisions
+      ? toEarlierReview(decisions.confirmed, decisions.rejected)
+      : undefined;
+
+    const result = await runReview(event, repo, deps, earlier, (stage) =>
       setReviewStage(deps.db, review.id, stage),
     );
+    const followUp = toFollowUpEntries(result.followUp, decisions?.confirmed ?? []);
 
-    const stillCurrent = await completeReview(deps.db, review.id, result);
+    const stillCurrent = await completeReview(deps.db, review.id, result, followUp);
     if (!stillCurrent) {
       // A newer commit arrived while the model was working. Its own review
       // owns the PR now; this one only needs its check run closed.

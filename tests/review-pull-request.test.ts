@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
-import { getReviewDetail, listOpenReviews } from "@/db/queries";
+import {
+  claimReviewForPublish,
+  decideFinding,
+  getReviewDetail,
+  listOpenReviews,
+} from "@/db/queries";
 import { reviewPullRequest, type ReviewDeps } from "@/github/review-pull-request";
 import type { PullRequestEvent } from "@/github/webhook-payload";
 import { DiffTooLargeError } from "@/github/client";
@@ -193,7 +198,7 @@ describe("reviewPullRequest", () => {
       name: "watching",
       generate: async () => {
         seen.push(await stageNow());
-        return { output: { summary: VALID_SUMMARY, findings: [] }, usage: { inputTokens: 1, outputTokens: 1 } };
+        return { output: { summary: VALID_SUMMARY, findings: [], followUp: [] }, usage: { inputTokens: 1, outputTokens: 1 } };
       },
     };
 
@@ -210,7 +215,7 @@ describe("reviewPullRequest", () => {
       name: "slow",
       generate: async () => {
         await reviewPullRequest(event("sha-2"), deps(newer));
-        return { output: { summary: VALID_SUMMARY, findings: [FINDING] }, usage: { inputTokens: 1, outputTokens: 1 } };
+        return { output: { summary: VALID_SUMMARY, findings: [FINDING], followUp: [] }, usage: { inputTokens: 1, outputTokens: 1 } };
       },
     };
 
@@ -222,6 +227,45 @@ describe("reviewPullRequest", () => {
     const oldCheckId = github.checkRuns.find((c) => c.headSha === "sha-1")?.id;
     const lastOldUpdate = github.checkRunUpdates.filter((u) => u.id === oldCheckId).at(-1);
     expect(lastOldUpdate?.update).toMatchObject({ status: "completed", conclusion: "neutral" });
+  });
+
+  it("carries the reviewer's earlier decisions into the review of a new commit", async () => {
+    const WARNING = { ...FINDING, startLine: 12, endLine: 12, severity: "warning", explanation: "Second problem." };
+    await reviewPullRequest(event("sha-1"), deps(new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING, WARNING] })));
+    const first = await onlyReview();
+    const [confirmed, rejected] = first.findings;
+    await decideFinding(db, confirmed!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, rejected!.id, { status: "rejected", rejectionReason: "Handled by middleware" }, "lee");
+    await claimReviewForPublish(db, first.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+
+    // The author pushes a fix. The model says the confirmed finding is gone.
+    const second = new FakeModel({
+      summary: VALID_SUMMARY,
+      findings: [],
+      followUp: [{ id: `P${confirmed!.id}`, status: "fixed", note: "The loop bound is correct now." }],
+    });
+    await reviewPullRequest(event("sha-2"), deps(second));
+
+    const prompt = second.prompts[0]?.user ?? "";
+    expect(prompt).toContain(`[P${confirmed!.id}] src/cart.ts, line 11: Reads past the end.`);
+    expect(prompt).toContain(`[R${rejected!.id}] src/cart.ts, line 12: Second problem. Reviewer's reason: Handled by middleware`);
+
+    const followUp = (await onlyReview()).review.followUp;
+    expect(followUp).toEqual([
+      {
+        previousFindingId: confirmed!.id, status: "fixed", note: "The loop bound is correct now.",
+        filePath: "src/cart.ts", startLine: 11, severity: "critical", explanation: "Reads past the end.",
+      },
+    ]);
+  });
+
+  it("has no follow-up on the first review of a pull request", async () => {
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });
+
+    await reviewPullRequest(event(), deps(model));
+
+    expect(model.prompts[0]?.user).not.toContain("earlier_review");
+    expect((await onlyReview()).review.followUp).toBeNull();
   });
 
   it("stores a too-large review when GitHub cannot render the diff", async () => {

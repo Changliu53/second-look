@@ -18,6 +18,7 @@ import {
   repositories,
   reviews,
   type Finding,
+  type FollowUpEntry,
   type PullRequest,
   type Repository,
   type Review,
@@ -241,6 +242,7 @@ export async function completeReview(
   db: Database,
   reviewId: number,
   result: ReviewResult,
+  followUp: FollowUpEntry[] = [],
 ): Promise<boolean> {
   if (result.findings.length > 0) {
     await db.insert(findings).values(
@@ -265,6 +267,7 @@ export async function completeReview(
     .set({
       status: result.status,
       summary: result.summary,
+      followUp: followUp.length > 0 ? followUp : null,
       model: result.model,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
@@ -286,6 +289,51 @@ export async function failReview(
     .where(and(eq(reviews.id, reviewId), eq(reviews.status, "running")))
     .returning({ id: reviews.id });
   return updated.length === 1;
+}
+
+export type EarlierDecisions = {
+  headSha: string | null;
+  confirmed: Finding[];
+  rejected: Finding[];
+};
+
+/**
+ * The reviewer's decisions from the most recently published review of this
+ * pull request at a different commit, or null if there is none. A new review
+ * uses them to avoid repeating rejected findings and to say which confirmed
+ * ones were fixed.
+ */
+export async function getEarlierDecisions(
+  db: Database,
+  pullRequestId: number,
+  currentHeadSha: string,
+): Promise<EarlierDecisions | null> {
+  const rows = await db
+    .select()
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.pullRequestId, pullRequestId),
+        isNotNull(reviews.publishedAt),
+        ne(reviews.headSha, currentHeadSha),
+      ),
+    )
+    .orderBy(desc(reviews.publishedAt))
+    .limit(1);
+  const previous = rows[0];
+  if (!previous) {
+    return null;
+  }
+  const decided = await db
+    .select()
+    .from(findings)
+    .where(eq(findings.reviewId, previous.id))
+    .orderBy(findings.id);
+  return {
+    headSha: previous.headSha,
+    confirmed: decided.filter((finding) => finding.status === "confirmed"),
+    rejected: decided.filter((finding) => finding.status === "rejected"),
+  };
 }
 
 /** Logs a paste-mode review. Only token usage is kept, never the pasted code. */
@@ -538,7 +586,11 @@ export async function editFinding(
 export async function claimReviewForPublish(
   db: Database,
   reviewId: number,
-  input: { publishedBy: string; reviewerNote: string | null },
+  input: {
+    publishedBy: string;
+    reviewerNote: string | null;
+    resolution: Review["resolution"];
+  },
 ): Promise<boolean> {
   const rows = await db
     .update(reviews)
@@ -554,7 +606,7 @@ export async function releasePublishClaim(
 ): Promise<void> {
   await db
     .update(reviews)
-    .set({ publishedAt: null, publishedBy: null, reviewerNote: null })
+    .set({ publishedAt: null, publishedBy: null, reviewerNote: null, resolution: null })
     .where(eq(reviews.id, reviewId));
 }
 

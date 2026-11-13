@@ -55,6 +55,29 @@ export const findingStatusEnum = pgEnum("finding_status", [
 
 export const findingSourceEnum = pgEnum("finding_source", ["ai", "human"]);
 
+/** Who makes the fixes after the review is published. */
+export const resolutionEnum = pgEnum("review_resolution", [
+  // The author gets the comments and a prompt for their AI tool.
+  "author_fixes",
+  // The reviewer fixes the pull request themselves.
+  "reviewer_takes_over",
+]);
+
+/**
+ * How a finding from the previous review of the same pull request looks at
+ * this commit. The earlier finding's text is copied in, so the follow-up can
+ * be shown without loading the old review.
+ */
+export type FollowUpEntry = {
+  previousFindingId: number;
+  status: "fixed" | "still_present" | "unclear";
+  note: string;
+  filePath: string;
+  startLine: number;
+  severity: "critical" | "warning" | "nit";
+  explanation: string;
+};
+
 /** The steps of a running review, in order. */
 export const REVIEW_STAGES = ["fetching_diff", "reading_files", "model_reviewing"] as const;
 export type ReviewStage = (typeof REVIEW_STAGES)[number];
@@ -121,6 +144,8 @@ export const reviews = pgTable(
     // What a running review is doing right now, shown live to the reviewer.
     stage: text("stage").$type<ReviewStage>(),
     summary: jsonb("summary").$type<ReviewSummary>(),
+    followUp: jsonb("follow_up").$type<FollowUpEntry[]>(),
+    resolution: resolutionEnum("resolution"),
     model: text("model"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),

@@ -25,6 +25,16 @@ describe("checkRunFor", () => {
     expect(check.title).toBe("1 critical finding to fix");
   });
 
+  it("says who is fixing it when the reviewer took the pull request over", () => {
+    const check = checkRunFor({
+      kind: "published", confirmedCount: 2, confirmedCriticalCount: 2, takenOverBy: "lee",
+    });
+
+    expect(check.conclusion).toBe("action_required");
+    expect(check.summary).toContain("lee has taken this pull request over");
+    expect(check.summary).toContain("The author does not need to do anything");
+  });
+
   it("succeeds when confirmed findings are warnings and nits only", () => {
     const check = checkRunFor({ kind: "published", confirmedCount: 2, confirmedCriticalCount: 0 });
     expect(check).toMatchObject({ status: "completed", conclusion: "success" });

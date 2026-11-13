@@ -17,6 +17,7 @@ import {
   publishReviewFor,
   type DashboardDeps,
 } from "@/dashboard/service";
+import { clearDiffCache, getDiffCached } from "@/dashboard/diff-cache";
 import type { ReviewResult } from "@/review/engine";
 import { FakeGitHub } from "./helpers/fake-github";
 import { createTestDb, seedPullRequest } from "./helpers/test-db";
@@ -43,6 +44,7 @@ function result(): ReviewResult {
       { ...base, startLine: 11, endLine: 11, severity: "critical", explanation: "CRITICAL_BUG" },
       { ...base, startLine: 12, endLine: 12, severity: "warning", explanation: "WARNING_BUG" },
     ],
+    followUp: [],
     skippedFiles: [],
     usage: { inputTokens: 10, outputTokens: 5 },
     model: "test-model",
@@ -61,6 +63,7 @@ async function findings() {
 }
 
 beforeEach(async () => {
+  clearDiffCache();
   db = await createTestDb();
   github = new FakeGitHub();
   github.diff = DIFF;
@@ -101,6 +104,29 @@ describe("access control", () => {
     expect([decide.ok, edit.ok, publish.ok]).toEqual([false, false, false]);
     expect((await findings()).every((f) => f.status === "pending")).toBe(true);
     expect(github.reviews).toEqual([]);
+  });
+});
+
+describe("diff cache", () => {
+  it("asks GitHub for the diff once per commit, not once per page render", async () => {
+    clearDiffCache();
+    let calls = 0;
+    const original = github.getPullRequestDiff.bind(github);
+    github.getPullRequestDiff = async () => {
+      calls += 1;
+      return original();
+    };
+    const repo = { owner: "acme", name: "shop" };
+
+    await getDiffCached(github, repo, 7, "sha-1");
+    await getDiffCached(github, repo, 7, "sha-1");
+    expect(calls).toBe(1);
+
+    // A new commit, an expired entry, or an unknown commit all fetch again.
+    await getDiffCached(github, repo, 7, "sha-2");
+    await getDiffCached(github, repo, 7, "sha-1", Date.now() + 6 * 60 * 1000);
+    await getDiffCached(github, repo, 7, null);
+    expect(calls).toBe(4);
   });
 });
 
@@ -172,6 +198,32 @@ describe("publishReviewFor", () => {
     await publishReviewFor(reviewId, null, "lee", deps);
 
     expect(github.lastCheckUpdate()).toMatchObject({ conclusion: "success" });
+  });
+
+  it("records a take-over and tells the author they need not act", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+
+    const outcome = await publishReviewFor(reviewId, null, "lee", deps, "reviewer_takes_over");
+
+    expect(outcome).toEqual({ ok: true });
+    const body = github.reviews[0]?.payload.body ?? "";
+    expect(body).toContain("lee is taking this pull request over");
+    expect(body).not.toContain("Fixing these with an AI tool");
+    expect((await getReviewDetail(db, reviewId))?.review.resolution).toBe("reviewer_takes_over");
+    expect(github.lastCheckUpdate()?.summary).toContain("lee has taken this pull request over");
+  });
+
+  it("sends the fix prompt and records the resolution when sent back to the author", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+
+    await publishReviewFor(reviewId, null, "lee", deps);
+
+    expect(github.reviews[0]?.payload.body).toContain('my pull request "Add checkout"');
+    expect((await getReviewDetail(db, reviewId))?.review.resolution).toBe("author_fixes");
   });
 
   it("publishes once even if the button is pressed twice", async () => {

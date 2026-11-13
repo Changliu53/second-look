@@ -6,6 +6,7 @@ import { RiskBadge } from "@/components/badges";
 import { MarkdownLite } from "@/components/markdown-lite";
 import { DiffFile } from "@/components/review/diff-file";
 import { FindingOutline } from "@/components/review/finding-outline";
+import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { FindingKeys } from "@/components/review/finding-keys";
 import { Logo, NavLinks } from "@/components/site-header";
 import { BUTTON, BUTTON_PRIMARY, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
@@ -14,14 +15,13 @@ import type { Finding } from "@/db/schema";
 import type { Example } from "@/examples/examples";
 import type { SavedResult } from "@/examples/saved";
 import { checkRunFor } from "@/github/check-run";
-import { buildReviewPayload } from "@/github/publish";
+import { buildReviewParts, fixPromptFor, type Resolution } from "@/github/publish";
 import type { PasteSuccess } from "@/paste/handle-paste";
 import { parseUnifiedDiff } from "@/review/diff";
 import { PASTED_FILE_NAME, toReviewableDiff } from "@/review/paste";
 import type { ReviewSummary } from "@/review/schema";
 import {
   countByStatus,
-  SANDBOX_REVIEWER,
   sandboxReducer,
   toSandboxFindings,
   type SandboxAction,
@@ -38,6 +38,8 @@ import { SandboxFindingCard } from "./sandbox-finding-card";
 type Review = {
   /** The exact code that was reviewed, so the diff matches the findings. */
   code: string;
+  /** Stands in for the pull request title in the fix prompt. */
+  title: string;
   summary: ReviewSummary;
   /** Shown above the result: where it came from. */
   origin: string;
@@ -87,7 +89,12 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
   const [tab, setTab] = useState<Tab>("review");
   const [review, setReview] = useState<Review | null>(
     selected && saved
-      ? { code: selected.code, summary: saved.summary, origin: savedOrigin(saved) }
+      ? {
+          code: selected.code,
+          title: selected.description,
+          summary: saved.summary,
+          origin: savedOrigin(saved),
+        }
       : null,
   );
   const [findings, setFindings] = useState<Finding[]>(
@@ -104,6 +111,7 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
     }
     setReview({
       code,
+      title: description.trim() || "this change",
       summary: outcome.result.summary,
       origin: "Reviewed just now. Your code was sent to the model and was not stored.",
     });
@@ -341,7 +349,7 @@ function ResultPane({
             1. Your review
           </button>
           <button role="tab" aria-selected={tab === "author"} className={tabClass("author")} onClick={() => onTab("author")}>
-            2. What the author gets
+            2. Publish: who fixes it
           </button>
         </div>
         <p className="text-xs text-ink-soft">
@@ -395,7 +403,7 @@ function ResultPane({
             {findings.length > 0 && (
               <div className="mt-6 flex items-center gap-3">
                 <button className={BUTTON_PRIMARY} onClick={() => onTab("author")}>
-                  See what the author gets
+                  Next: publish and choose who fixes it
                 </button>
                 {counts.pending > 0 && (
                   <span className="text-xs text-ink-soft">
@@ -419,6 +427,22 @@ const CHECK_STYLES: Record<string, string> = {
   success: "border-green-200 bg-green-50 text-green-900",
 };
 
+// In the preview text a real reviewer's GitHub login would appear here.
+const PREVIEW_REVIEWER = "The reviewer";
+
+const MODES: Array<{ value: Resolution; label: string; detail: string }> = [
+  {
+    value: "author_fixes",
+    label: "Send back to the author",
+    detail: "They get your comments and a prompt for their AI tool.",
+  },
+  {
+    value: "reviewer_takes_over",
+    label: "I will fix it myself",
+    detail: "The author is told to do nothing. You get a prompt for your own agent.",
+  },
+];
+
 function AuthorView({
   review,
   findings,
@@ -430,27 +454,34 @@ function AuthorView({
   files: ReturnType<typeof parseUnifiedDiff>;
   pending: number;
 }) {
+  const [resolution, setResolution] = useState<Resolution>("author_fixes");
   const [copied, setCopied] = useState(false);
   const confirmed = findings.filter((finding) => finding.status === "confirmed");
-  const payload = buildReviewPayload({
+  const takenOver = resolution === "reviewer_takes_over";
+  const title = review.title;
+  const parts = buildReviewParts({
     headSha: "",
     summary: review.summary,
     findings,
     files,
-    reviewerLogin: SANDBOX_REVIEWER,
+    reviewerLogin: PREVIEW_REVIEWER,
     reviewerNote: null,
+    resolution,
+    pullRequestTitle: title,
   });
+  const engineerPrompt = takenOver ? fixPromptFor(title, findings, "engineer") : null;
   const check = checkRunFor({
     kind: "published",
     confirmedCount: confirmed.length,
     confirmedCriticalCount: confirmed.filter((f) => f.severity === "critical").length,
+    takenOverBy: takenOver ? PREVIEW_REVIEWER : undefined,
   });
 
   async function copyMarkdown() {
-    const comments = payload.comments.map(
+    const comments = parts.comments.map(
       (comment) => `### ${comment.path}:${comment.line}\n\n${comment.body}`,
     );
-    await navigator.clipboard.writeText([payload.body, ...comments].join("\n\n"));
+    await navigator.clipboard.writeText([parts.main, ...comments, parts.footer].join("\n\n"));
     setCopied(true);
   }
 
@@ -462,6 +493,32 @@ function AuthorView({
           the real dashboard, Publish stays disabled until every finding is confirmed or rejected,
           so nothing is dropped by accident.
         </p>
+      )}
+
+      {confirmed.length > 0 && (
+        <fieldset>
+          <legend className={SECTION_LABEL}>Who makes the fixes?</legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {MODES.map((mode) => (
+              <label
+                key={mode.value}
+                className="flex cursor-pointer gap-3 rounded-md border border-edge bg-surface-raised p-3 transition hover:border-slate-400 has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+              >
+                <input
+                  type="radio"
+                  name="resolution"
+                  className="mt-1"
+                  checked={resolution === mode.value}
+                  onChange={() => setResolution(mode.value)}
+                />
+                <span>
+                  <span className="block text-sm font-medium">{mode.label}</span>
+                  <span className="block text-xs leading-relaxed text-ink-soft">{mode.detail}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       )}
 
       <div className={`rounded-lg border p-3 text-sm ${CHECK_STYLES[check.conclusion ?? ""] ?? "border-edge"}`}>
@@ -477,18 +534,36 @@ function AuthorView({
             {copied ? "Copied" : "Copy as Markdown"}
           </button>
         </div>
-        <div className="p-4">
-          <MarkdownLite text={payload.body} />
+        <div className="space-y-3 p-4">
+          <MarkdownLite text={parts.main} />
+          <MarkdownLite text={parts.footer} />
         </div>
       </section>
 
-      {payload.comments.length > 0 && (
+      {parts.fixPrompt && (
+        <FixPromptBlock
+          title="Fix prompt, included in the review"
+          hint="The author pastes this into their AI tool."
+          prompt={parts.fixPrompt}
+          open
+        />
+      )}
+      {engineerPrompt && (
+        <FixPromptBlock
+          title="Prompt for your coding agent"
+          hint="Shown to you in the dashboard after you publish. The author does not get it."
+          prompt={engineerPrompt}
+          open
+        />
+      )}
+
+      {parts.comments.length > 0 && (
         <section>
           <p className={SECTION_LABEL}>
-            {payload.comments.length} inline comment{payload.comments.length === 1 ? "" : "s"} on the diff
+            {parts.comments.length} inline comment{parts.comments.length === 1 ? "" : "s"} on the diff
           </p>
           <ul className="mt-2 space-y-2">
-            {payload.comments.map((comment, index) => (
+            {parts.comments.map((comment, index) => (
               <li key={index} className="rounded-lg border border-edge bg-surface-raised p-3">
                 <p className="font-mono text-xs text-ink-soft">
                   {comment.path === PASTED_FILE_NAME ? "line " : `${comment.path}:`}

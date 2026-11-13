@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { reviewOutputSchema, type ReviewOutput } from "@/review/schema";
+import { reviewCoreSchema, type ReviewCore } from "@/review/schema";
 import savedResults from "./saved-results.json";
 
 /**
@@ -9,12 +9,12 @@ import savedResults from "./saved-results.json";
  * when the model API is slow or down.
  */
 
-const savedResultSchema = reviewOutputSchema.extend({
+const savedResultSchema = reviewCoreSchema.extend({
   model: z.string().nullable(),
   generatedAt: z.string(),
 });
 
-export type SavedResult = ReviewOutput & { model: string | null; generatedAt: string };
+export type SavedResult = ReviewCore & { model: string | null; generatedAt: string };
 
 export function getSavedResult(exampleId: string): SavedResult | null {
   const raw = (savedResults as Record<string, unknown>)[exampleId];

@@ -8,6 +8,14 @@ import { Fragment } from "react";
  * React text nodes, never as raw HTML.
  */
 
+/**
+ * Text with `code` and **bold** rendered, and everything else left as is.
+ * Used for finding explanations, where the model often quotes identifiers.
+ */
+export function InlineText({ text }: { text: string }) {
+  return <>{renderInline(text)}</>;
+}
+
 function renderInline(text: string): React.ReactNode[] {
   // Split on **bold** and `code`, keeping the delimiters.
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, index) => {

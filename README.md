@@ -2,13 +2,16 @@
 
 In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look is a tool for that engineer: it does the first pass on each pull request, and the engineer confirms, rejects, or rewrites every finding before the author sees anything.
 
-![The reviewer's page: a C# diff with two access-control findings inline, each with Confirm, Reject and Edit buttons](docs/dashboard.jpg)
+![The home page: C# code with an access-control finding inline, confirmed by the reviewer, and a progress bar counting pending, confirmed and rejected findings](docs/home.jpg)
 
 ## Try it
 
-- **A reviewed pull request, read-only, no login:** https://second-look-review.vercel.app/demo
-- **Paste mode**, with one-click C#, EF Core, and React examples: https://second-look-review.vercel.app/paste
+Everything below works without an account.
+
+- **Go through a review yourself:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then open the second tab to see the review and the merge check the author would get. Or paste your own code.
+- **A real pull request after review, read-only:** https://second-look-review.vercel.app/demo
 - **What the author sees on GitHub:** the published review and check run on [pull request #2](https://github.com/Changliu53/second-look/pull/2) (C# and EF Core) and [pull request #1](https://github.com/Changliu53/second-look/pull/1) (TypeScript). Both contain planted problems.
+- **The tool reviewing its own code:** [pull request #3](https://github.com/Changliu53/second-look/pull/3), where it found a real flaw in its own eval.
 
 ## How it works
 
@@ -28,7 +31,9 @@ flowchart LR
 5. "Publish review" posts the confirmed findings as one GitHub review with inline comments, with the summary on top.
 6. A check run on the PR stays in progress until the review is published. It then fails with "action required" if any confirmed finding is critical, and passes otherwise, so a team can require it before merging.
 
-There is also a paste mode at `/paste` to try a review on a snippet or a diff without GitHub.
+The reviewer's page is built for doing this many times a day: an outline of every finding, worst first; `j` `k` `n` to move, `c` `r` `e` to confirm, reject, and edit; suggested rejection reasons; and a bar that stays in view with how many are left.
+
+![The reviewer's page on a C# pull request: two access-control findings inline with Confirm, Reject and Edit](docs/dashboard.jpg)
 
 ## What it looks for
 
@@ -51,7 +56,9 @@ A repository can add its own rules in `.second-look.md` (see [the one in this re
 - Dashboard users must have write access to the repository, checked with GitHub on each request.
 - Lockfiles, generated files, and binaries are skipped. Diffs over a size limit get a "too large, split it" summary and no model call.
 - Token usage is logged per review. Diffs and file contents are not stored or logged.
-- Paste mode has an input size cap, a per-IP hourly limit, and a daily limit.
+- Reviews of pasted code have an input size cap, a per-IP hourly limit, and a daily limit. The built-in examples use saved results and call no API.
+- Text written by the model is neutralized before it is posted to GitHub, so a pull request cannot make the reviewer mention users or embed remote images.
+- Pull requests from authors without write access are not reviewed, and drafts wait until they are marked ready.
 
 ## Eval
 
@@ -112,12 +119,19 @@ npm run db:migrate
 npm run dev
 ```
 
-The step-by-step guide for Neon, the Anthropic key, the GitHub App, and Vercel is in [docs/SETUP.md](docs/SETUP.md).
+Creating the GitHub App is one command. It registers the app with the right permissions and writes its credentials to `.env.local`:
 
 ```
-npm test            # unit and database tests, no network needed
+npm run github-app:create -- https://your-deployment.example.com "Second Look (your team)"
+```
+
+The full guide for Neon, the Anthropic key, the GitHub App, and Vercel is in [docs/SETUP.md](docs/SETUP.md).
+
+```
+npm test                 # unit and database tests, no network needed
 npm run typecheck
-npm run eval        # calls the Anthropic API
+npm run eval             # calls the Anthropic API
+npm run examples:build   # regenerates the saved example results on the home page
 ```
 
 ## Stack
@@ -135,5 +149,6 @@ Design choices and the alternatives that were rejected are in [DECISIONS.md](DEC
 - A reviewer cannot add their own findings in the dashboard yet.
 - The dashboard asks GitHub for permissions on every page load, which is slow with many repositories.
 - Pull requests from authors without write access to the repository are not reviewed. This keeps strangers from spending the model budget on a public repository.
+- There is no button to re-run a failed review. Close and reopen the pull request.
 - The eval is fourteen cases. It catches regressions; it is not a benchmark.
 - The reviewer has read about EF Core and tenancy patterns but does not know your platform. Invariants it should enforce have to be written in `.second-look.md`.

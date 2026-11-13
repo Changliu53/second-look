@@ -116,3 +116,22 @@ words. "Read line by line" marks the files worth knowing in detail.
 
 5. **The reviewer cited "team guidelines" in its findings. Where do they come from, and why does that matter?**
    From `.second-look.md` on the base branch. The model knows general patterns but not this platform's rules. Writing the invariants down once means every review checks them, and a finding that quotes the rule teaches the author the rule.
+
+## Hardening and the interactive home page
+
+**Read line by line:** `src/github/publish.ts` (`neutralizeForGithub`), `src/db/queries.ts` (`completeReview`), `src/sandbox/model.ts`, `src/components/review/finding-keys.tsx`
+
+1. **Two commits are pushed ten seconds apart. What could go wrong, and how is it prevented?**
+   Two reviews run at once. The older one is marked superseded, but when its model call returns it used to set its status back to completed, so an outdated review reappeared as open. Now the final update only applies `WHERE status = 'running'`, and the old commit's check closes as neutral. The test reproduces it by handling the second push from inside the first review's model call.
+
+2. **Prompt injection is usually about input. What is the output-side risk here?**
+   The model's text is posted to GitHub, and the code under review shapes that text. A pull request could get the reviewer to write `@org/team` (notifying people) or `![](https://...)` (loading a remote image for everyone who views the comment). The text is neutralized before posting: mentions go in backticks, image syntax is escaped. The human reviewer's own note is not touched.
+
+3. **Why does the dashboard put an error code in the URL instead of the message?**
+   The message used to travel in `?error=...` and the page displayed whatever was there, so a crafted link could show any text inside the dashboard. Now only a known code is accepted and mapped to a fixed sentence.
+
+4. **The home page lets visitors confirm and reject findings with no account. How is that not a second implementation of the product?**
+   Sandbox findings are kept in React state in the same shape as database rows and passed to the same pure functions the dashboard uses for placing comments, building the GitHub review, and deciding the check result. Only the buttons differ. A test checks the preview contains confirmed findings only.
+
+5. **How did you lower false positives, and how do you know it worked?**
+   By writing down what a warning is: it has to go wrong in normal use. Hardening advice is left out or downgraded. On the eval, found stayed 12 of 12 and unplanted warnings went from 6 to 3. The limits: fourteen cases, one run each, and the rule was written after seeing the results. The real measure is how often reviewers reject findings on real pull requests, which the `findings` table already records.

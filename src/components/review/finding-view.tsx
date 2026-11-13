@@ -1,4 +1,5 @@
 import { CategoryBadge, SeverityBadge } from "@/components/badges";
+import { InlineText } from "@/components/markdown-lite";
 import type { Finding } from "@/db/schema";
 import { publishedText } from "@/github/publish";
 import { PASTED_FILE_NAME } from "@/review/paste";
@@ -78,11 +79,13 @@ export function FindingText({ finding }: { finding: Finding }) {
 
   return (
     <div className={dimmed}>
-      <p className="mt-2 whitespace-pre-wrap leading-relaxed">{text.explanation}</p>
+      <p className="mt-2 whitespace-pre-wrap leading-relaxed">
+        <InlineText text={text.explanation} />
+      </p>
       {text.suggestedFix && (
         <p className="mt-2 whitespace-pre-wrap rounded bg-slate-50 px-2.5 py-2 leading-relaxed text-slate-800">
           <span className="font-semibold">Suggested fix: </span>
-          {text.suggestedFix}
+          <InlineText text={text.suggestedFix} />
         </p>
       )}
       {wasEdited && (

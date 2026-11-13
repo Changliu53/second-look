@@ -108,11 +108,15 @@ function OpenRow({ item, login }: { item: ReviewListItem; login: string }) {
               ? `AI: ${stageLabel(review.stage).toLowerCase()}`
               : STATUS_LABELS[review.status]}
         </span>
-        {total > 0 && (
-          <span className="w-28 text-right text-xs text-ink-soft">
-            <span className="font-semibold text-ink">{item.pendingCount}</span> of {total} to decide
-          </span>
-        )}
+        {total > 0 &&
+          (item.pendingCount === 0 && review.status === "completed" ? (
+            // Every finding has a decision: the only step left is publishing.
+            <span className="w-28 text-right text-xs font-medium text-green-700">Ready to publish</span>
+          ) : (
+            <span className="w-28 text-right text-xs text-ink-soft">
+              <span className="font-semibold text-ink">{item.pendingCount}</span> of {total} to decide
+            </span>
+          ))}
       </Link>
     </li>
   );

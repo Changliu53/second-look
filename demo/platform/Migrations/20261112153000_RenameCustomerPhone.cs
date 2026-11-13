@@ -15,12 +15,14 @@ namespace Platform.Data.Migrations
                 table: "Customers",
                 newName: "PrimaryPhone");
 
+            // Existing wells have no region yet, so the column is nullable and
+            // they keep NULL. A later migration can make it required once every
+            // well has been assigned a real region.
             migrationBuilder.AddColumn<int>(
                 name: "ServiceRegionId",
                 table: "Wells",
                 type: "int",
-                nullable: false,
-                defaultValue: 0);
+                nullable: true);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_Wells_ServiceRegions_ServiceRegionId",
@@ -28,7 +30,7 @@ namespace Platform.Data.Migrations
                 column: "ServiceRegionId",
                 principalTable: "ServiceRegions",
                 principalColumn: "Id",
-                onDelete: ReferentialAction.Cascade);
+                onDelete: ReferentialAction.Restrict);
         }
 
         /// <inheritdoc />

@@ -55,8 +55,15 @@ public class WorkOrdersController : ControllerBase
     [Authorize(Policy = "WorkOrders.Write")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        await _db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM WorkOrders WHERE Id = " + id + " OR ParentWorkOrderId = " + id, ct);
+        var workOrders = await _db.WorkOrders
+            .Where(w => w.TenantId == _tenant.TenantId && (w.Id == id || w.ParentWorkOrderId == id))
+            .ToListAsync(ct);
+        if (workOrders.Count == 0)
+        {
+            return NotFound();
+        }
+        _db.WorkOrders.RemoveRange(workOrders);
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 }

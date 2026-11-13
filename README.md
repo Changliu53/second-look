@@ -47,6 +47,7 @@ flowchart LR
 6. **A fix is pushed and the pull request is reviewed again.** The new review knows what the reviewer decided last time. Findings they rejected are not raised again, and each finding that was sent gets a verdict: fixed, still there, or cannot tell.
 
    ![Since the last review: 4 of 7 sent findings fixed, with a note on each](docs/follow-up.jpg)
+7. **The decisions are added up.** The dashboard's insights page shows the share of first-pass findings that reviewers confirmed, by severity and category, the reasons for rejections, and what reviewers had to add themselves. It reads stored decisions and calls no model.
 
 ## What it looks for
 

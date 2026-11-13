@@ -12,6 +12,7 @@ import {
   addFindingFor,
   decideFindingFor,
   editFindingFor,
+  getInsightsFor,
   getDemoReview,
   getReviewFor,
   listReviewsFor,
@@ -174,6 +175,27 @@ describe("editFindingFor", () => {
     expect(valid.ok).toBe(true);
     const [after] = await findings();
     expect(after).toMatchObject({ editedExplanation: "Clear text", editedSuggestedFix: null, status: "confirmed" });
+  });
+});
+
+describe("getInsightsFor", () => {
+  it("counts decisions only once the review is published, and only for repositories the user may review", async () => {
+    const [first, second] = await findings();
+    await decideFindingFor(first!.id, { status: "confirmed" }, "lee", deps);
+    await decideFindingFor(second!.id, { status: "rejected", rejectionReason: "By design" }, "lee", deps);
+
+    const before = await getInsightsFor("lee", deps);
+    await publishReviewFor(reviewId, null, "lee", deps);
+    const after = await getInsightsFor("lee", deps);
+    const outsider = await getInsightsFor("reader", deps);
+
+    expect(before.insights.decided).toBe(0);
+    expect(after.insights).toMatchObject({ decided: 2, confirmed: 1, rejected: 1 });
+    expect(after.insights.rejectionReasons).toEqual([{ reason: "By design", count: 1 }]);
+    expect(after.publishedReviews).toBe(1);
+    expect(after.repositories).toHaveLength(1);
+    expect(outsider.insights.decided).toBe(0);
+    expect(outsider.repositories).toEqual([]);
   });
 });
 

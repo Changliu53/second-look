@@ -802,3 +802,51 @@ export async function incrementRateLimit(
     .returning({ count: rateLimits.count });
   return firstRow(rows, "rate limit upsert").count;
 }
+
+/** Every repository the app has seen a pull request on. */
+export async function listRepositories(db: Database): Promise<Repository[]> {
+  return db.select().from(repositories).orderBy(repositories.owner, repositories.name);
+}
+
+/**
+ * Decided findings of published reviews in the given repositories, for the
+ * insights page. Unpublished reviews are left out: a decision can still
+ * change until the review is published.
+ */
+export async function listPublishedFindings(db: Database, repositoryIds: number[]) {
+  if (repositoryIds.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      source: findings.source,
+      status: findings.status,
+      severity: findings.severity,
+      category: findings.category,
+      editedExplanation: findings.editedExplanation,
+      rejectionReason: findings.rejectionReason,
+    })
+    .from(findings)
+    .innerJoin(reviews, eq(findings.reviewId, reviews.id))
+    .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
+    .where(
+      and(
+        isNotNull(reviews.publishedAt),
+        ne(findings.status, "pending"),
+        inArray(pullRequests.repositoryId, repositoryIds),
+      ),
+    );
+}
+
+/** How many reviews have been published in the given repositories, and their follow-up verdicts. */
+export async function listPublishedFollowUps(db: Database, repositoryIds: number[]) {
+  if (repositoryIds.length === 0) {
+    return [];
+  }
+  return db
+    .select({ followUp: reviews.followUp })
+    .from(reviews)
+    .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
+    .where(and(isNotNull(reviews.publishedAt), inArray(pullRequests.repositoryId, repositoryIds)));
+}
+

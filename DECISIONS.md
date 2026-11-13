@@ -261,3 +261,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** Components name colours by scale step (`bg-slate-900` for a solid button, `bg-red-50` for a tinted panel). Mirroring the scales turns every one of them at once and keeps contrast pairs together: white text on a slate-900 button becomes dark text on a light button. The other way is a `dark:` class beside every colour class in every component, which is hundreds of edits and easy to miss one.
 **Limit:** Only the steps in use are redefined. A component that starts using a new step needs a line in the dark block, or that colour stays light. A short script in the page head sets the theme before first paint, so the page does not flash; with scripts off, the page is light.
 
+## 49. Reviewers' decisions are added up on an insights page
+**What:** `/dashboard/insights` shows, for the repositories the signed-in user may review: how many first-pass findings were decided, the share confirmed, how many were rewritten before sending, how many findings reviewers added themselves, the same share by severity and by category, the reasons given for rejections, and how many sent findings were fixed by the next push.
+**Why:** Every Confirm and Reject is a judgement on the first pass by the person best placed to make it, and it was being stored and never read. A category with a low confirmed share is a place to tighten the prompt or the team rules; findings added by reviewers are what the first pass misses.
+**Details:** Only published reviews count, because a decision can change until then. Findings a reviewer wrote are left out of the confirmed share: they are always confirmed and would flatter it. The page reads the database only and calls no model.
+**Limit:** The numbers are small on a new installation, and a share of a handful of findings says little. The page shows the counts next to every share for that reason.
+

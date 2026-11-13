@@ -101,6 +101,17 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+/*
+ * One visible focus ring for everything reachable with Tab. `:where` keeps
+ * the rule weak, so a control with its own focus style (the text inputs)
+ * keeps it.
+ */
+:where(a, button, summary, select, input[type="radio"]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
 /* Leaves room for the sticky bar when the browser scrolls to a finding. */
 [data-finding] {
   scroll-margin-top: 5.5rem;

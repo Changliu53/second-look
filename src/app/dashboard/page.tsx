@@ -143,7 +143,12 @@ export default async function DashboardPage() {
       <AutoRefresh seconds={anyRunning ? 3 : 10} />
 
       <main className="mx-auto max-w-4xl px-5 py-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Waiting for your decision</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Waiting for your decision</h1>
+          <Link href="/dashboard/insights" className={`${LINK} text-sm`}>
+            How the first pass is doing
+          </Link>
+        </div>
         {open.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-edge p-6 text-sm leading-relaxed text-ink-soft">
             <p>

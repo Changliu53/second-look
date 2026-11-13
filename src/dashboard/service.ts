@@ -10,7 +10,10 @@ import {
   listReviewRounds,
   getReviewDetail,
   listOpenReviews,
+  listPublishedFindings,
+  listPublishedFollowUps,
   listPublishedReviews,
+  listRepositories,
   recordGithubReviewId,
   releasePublishClaim,
   removeHumanFinding,
@@ -20,6 +23,7 @@ import {
   type ReviewListItem,
   type ReviewRound,
 } from "@/db/queries";
+import type { Repository } from "@/db/schema";
 import { checkRunFor } from "@/github/check-run";
 import type { GitHubClient } from "@/github/client";
 import { buildReviewPayload, type Resolution } from "@/github/publish";
@@ -29,6 +33,7 @@ import { parseUnifiedDiff } from "@/review/diff";
 import { CATEGORIES, SEVERITIES } from "@/review/schema";
 import { canReviewRepository } from "@/github/access";
 import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
+import { summarizeDecisions, type DecidedFinding, type Insights } from "./insights";
 
 /**
  * Everything the dashboard can do, as plain functions. The Next.js pages and
@@ -460,3 +465,51 @@ export async function publishReviewFor(
   logEvent("review_published", { reviewId, confirmed: confirmed.length, resolution });
   return { ok: true };
 }
+
+export type InsightsView = {
+  insights: Insights;
+  /** The repositories the numbers cover, as owner/name. */
+  repositories: string[];
+  publishedReviews: number;
+};
+
+/**
+ * Totals of reviewers' decisions, over the repositories this user may
+ * review. The same access rule as everywhere else: write access, asked of
+ * GitHub, one lookup per repository.
+ */
+export async function getInsightsFor(login: string, deps: DashboardDeps): Promise<InsightsView> {
+  const visible: Repository[] = [];
+  for (const repository of await listRepositories(deps.db)) {
+    const github = await deps.githubFor(repository.installationId);
+    if (await canReviewRepository(github, repository, login)) {
+      visible.push(repository);
+    }
+  }
+  const ids = visible.map((repository) => repository.id);
+  const [rows, published] = await Promise.all([
+    listPublishedFindings(deps.db, ids),
+    listPublishedFollowUps(deps.db, ids),
+  ]);
+  const decided: DecidedFinding[] = rows.flatMap((row) =>
+    // The query leaves out pending findings; this narrows the type to match.
+    row.status === "pending"
+      ? []
+      : [
+          {
+            source: row.source,
+            status: row.status,
+            severity: row.severity,
+            category: row.category,
+            edited: row.editedExplanation !== null,
+            rejectionReason: row.rejectionReason,
+          },
+        ],
+  );
+  return {
+    insights: summarizeDecisions(decided, published.flatMap((review) => review.followUp ?? [])),
+    repositories: visible.map((repository) => `${repository.owner}/${repository.name}`),
+    publishedReviews: published.length,
+  };
+}
+

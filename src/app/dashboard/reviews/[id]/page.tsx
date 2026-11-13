@@ -2,15 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getSignedInLogin } from "@/auth";
-import { SummaryCard } from "@/components/summary-card";
-import { buildReviewView } from "@/dashboard/diff-view";
+import { ReviewContent } from "@/components/review/review-content";
 import { getReviewFor } from "@/dashboard/service";
 import type { ReviewDetail } from "@/db/queries";
-import { parseUnifiedDiff } from "@/review/diff";
 import { publishReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
-import { DiffFile } from "./diff-file";
-import { FindingCard } from "./finding-card";
 
 export const dynamic = "force-dynamic";
 
@@ -82,29 +78,15 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
   }
 
   const { detail, diff } = loaded;
-  const { review, pullRequest, repository } = detail;
   const { error } = await searchParams;
   const reason = lockedReason(detail);
   const locked = reason !== null;
-  const view = buildReviewView(diff === null ? [] : parseUnifiedDiff(diff), detail.findings);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <Link className="text-sm text-blue-700 underline" href="/dashboard">
         All reviews
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold">{pullRequest.title}</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        <a
-          className="text-blue-700 underline"
-          href={`https://github.com/${repository.owner}/${repository.name}/pull/${pullRequest.number}`}
-        >
-          {repository.owner}/{repository.name}#{pullRequest.number}
-        </a>{" "}
-        by {pullRequest.authorLogin}, commit{" "}
-        <span className="font-mono">{review.headSha?.slice(0, 7)}</span>
-      </p>
-
       {error && (
         <p role="alert" className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {error}
@@ -116,30 +98,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
         </p>
       )}
 
-      {review.summary && (
-        <div className="mt-6">
-          <SummaryCard summary={review.summary} />
-        </div>
-      )}
-
-      {diff === null && (
-        <p className="mt-6 text-sm text-slate-600">
-          The diff could not be loaded from GitHub. Findings are listed below without it.
-        </p>
-      )}
-
-      {view.files.map((file) => (
-        <DiffFile key={file.path} file={file} locked={locked} />
-      ))}
-
-      {view.unplaced.length > 0 && (
-        <section className="mt-8">
-          <h2 className="font-semibold">Findings outside the changed lines</h2>
-          {view.unplaced.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} locked={locked} />
-          ))}
-        </section>
-      )}
+      <ReviewContent detail={detail} diff={diff} locked={locked} />
 
       {!locked && <PublishForm detail={detail} />}
     </main>

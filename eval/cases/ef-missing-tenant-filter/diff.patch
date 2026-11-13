@@ -1,0 +1,27 @@
+diff --git a/src/Platform.Api/WorkOrders/WorkOrderService.cs b/src/Platform.Api/WorkOrders/WorkOrderService.cs
+index 708c7be..d467413 100644
+--- a/src/Platform.Api/WorkOrders/WorkOrderService.cs
++++ b/src/Platform.Api/WorkOrders/WorkOrderService.cs
+@@ -28,4 +28,22 @@ public class WorkOrderService
+         return await _db.WorkOrders
+             .FirstOrDefaultAsync(w => w.TenantId == _tenant.TenantId && w.Id == id, ct);
+     }
++
++    public async Task<List<WorkOrder>> SearchByCustomerAsync(string customerName, CancellationToken ct)
++    {
++        return await _db.WorkOrders
++            .Where(w => w.CustomerName.Contains(customerName))
++            .OrderByDescending(w => w.ScheduledFor)
++            .Take(50)
++            .ToListAsync(ct);
++    }
++
++    public async Task CloseAsync(int id, string closedBy, CancellationToken ct)
++    {
++        var workOrder = await _db.WorkOrders.FirstAsync(w => w.Id == id, ct);
++        workOrder.Status = WorkOrderStatus.Closed;
++        workOrder.ClosedBy = closedBy;
++        workOrder.ClosedAt = DateTime.UtcNow;
++        await _db.SaveChangesAsync(ct);
++    }
+ }

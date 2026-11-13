@@ -1,0 +1,12 @@
+{
+  "title": "Add service regions to wells",
+  "description": "Adds a ServiceRegions table and links each well to a service region.",
+  "plantedBug": "Wells gets a required ServiceRegionId with default 0 and a foreign key. Existing wells get 0, which matches no region, so the migration fails on any database that already has wells (and works on an empty dev database).",
+  "expected": [
+    { "file": "src/Platform.Data/Migrations/20260918101500_AddServiceRegionToWells.cs", "startLine": 27, "endLine": 45, "categories": ["data-loss", "bug", "logic"] }
+  ],
+  "allowed": [
+    { "file": "src/Platform.Data/Migrations/20260918101500_AddServiceRegionToWells.cs", "startLine": 11, "endLine": 25, "categories": ["access-control", "security", "logic", "bug"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

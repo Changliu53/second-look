@@ -1,0 +1,10 @@
+{
+  "title": "Add work order search and close",
+  "description": "Lets office staff search work orders by customer name and mark a work order as closed.",
+  "plantedBug": "Both new methods query WorkOrders without the tenant filter the existing methods use. Staff at one operating company can read and close another company's work orders.",
+  "expected": [
+    { "file": "src/Platform.Api/WorkOrders/WorkOrderService.cs", "startLine": 32, "endLine": 38, "categories": ["access-control", "security"] },
+    { "file": "src/Platform.Api/WorkOrders/WorkOrderService.cs", "startLine": 41, "endLine": 43, "categories": ["access-control", "security"] }
+  ],
+  "ignoreCategories": ["missing-tests"]
+}

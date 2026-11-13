@@ -1,4 +1,14 @@
-import { and, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 import type { ReviewResult } from "@/review/engine";
 import type { Database } from "./client";
 import {
@@ -336,6 +346,35 @@ export async function getReviewDetail(
     .orderBy(findings.filePath, findings.startLine, findings.id);
 
   return { ...row, findings: reviewFindings };
+}
+
+/**
+ * The most recently published review of one pull request, for the public
+ * demo page. Only published reviews are returned: nothing a reviewer has not
+ * already released to the PR can be shown this way.
+ */
+export async function getLatestPublishedReview(
+  db: Database,
+  pull: { owner: string; name: string; number: number },
+): Promise<ReviewDetail | null> {
+  const rows = await db
+    .select({ id: reviews.id })
+    .from(reviews)
+    .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
+    .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
+    .where(
+      and(
+        eq(repositories.owner, pull.owner),
+        eq(repositories.name, pull.name),
+        eq(pullRequests.number, pull.number),
+        isNotNull(reviews.publishedAt),
+      ),
+    )
+    .orderBy(desc(reviews.publishedAt))
+    .limit(1);
+
+  const row = rows[0];
+  return row ? getReviewDetail(db, row.id) : null;
 }
 
 export async function getFinding(

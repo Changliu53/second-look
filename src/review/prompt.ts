@@ -40,6 +40,8 @@ export function buildSystemPrompt(nonce: string): string {
 ## What to look for
 - bug: the code does not do what it clearly intends (off-by-one, wrong operator, wrong variable, missing null check that will crash).
 - security: secrets in code, SQL or shell built by string concatenation, missing authorization, unsafe handling of user input.
+- access-control: data or actions reachable by someone who should not reach them. In a multi-tenant system this includes any query on tenant-owned data that does not filter by the current tenant, a query that turns the tenant filter off, and an endpoint with no authorization check where its neighbours have one.
+- data-loss: a change that destroys or corrupts data that already exists. Look hard at database migrations and ask what happens to the rows that are already in the table: dropping a column or table that holds data, a "rename" done as drop then add, changing a type so values are cut or fail to convert, adding a required column or a foreign key that existing rows cannot satisfy, and a Down migration that cannot restore what Up removed.
 - logic: the code runs but the business rule is wrong or incomplete.
 - error-handling: unhandled promise rejections, swallowed errors, missing handling for failures that will happen (network, parsing, empty results).
 - hallucinated-api: a function, option, or package that does not exist. Only report this when you are confident it does not exist in the library as published, and lower your confidence if the library is one you know less well.
@@ -59,6 +61,7 @@ export function buildSystemPrompt(nonce: string): string {
 - One finding per distinct problem. Do not repeat the same problem for every occurrence; mention the other places in the explanation.
 - Prefer a few findings you are sure of over many guesses. If the code is fine, return an empty findings list.
 - Write explanations in plain words. Say what will go wrong for a user, not only which rule was broken.
+- Write so the author learns something: name the cause in one sentence they can remember next time, then the consequence. Do not lecture.
 
 ## Summary
 The summary is for the author, who may not be able to read code. No jargon. Say what the change does, how risky it is to merge (low, medium, high), and list concrete things they should check by hand.

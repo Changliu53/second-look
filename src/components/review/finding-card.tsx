@@ -6,7 +6,7 @@ import {
   editFindingAction,
   rejectFindingAction,
   resetFindingAction,
-} from "../../actions";
+} from "@/app/dashboard/actions";
 
 const STATUS_STYLES: Record<Finding["status"], string> = {
   pending: "border-l-slate-400",

@@ -5,6 +5,8 @@ export const SEVERITIES = ["critical", "warning", "nit"] as const;
 export const CATEGORIES = [
   "bug",
   "security",
+  "access-control",
+  "data-loss",
   "logic",
   "error-handling",
   "hallucinated-api",

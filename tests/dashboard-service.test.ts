@@ -10,6 +10,7 @@ import {
 import {
   decideFindingFor,
   editFindingFor,
+  getDemoReview,
   getReviewFor,
   listReviewsFor,
   publishReviewFor,
@@ -226,5 +227,36 @@ describe("publishReviewFor", () => {
 
     expect(late).toEqual({ ok: false, error: "This review is already published." });
     expect((await findings())[0]?.status).toBe("confirmed");
+  });
+});
+
+describe("getDemoReview", () => {
+  const PULL = { owner: "acme", name: "shop", number: 7 };
+
+  it("shows nothing until the review has been published", async () => {
+    expect(await getDemoReview(PULL, deps)).toBeNull();
+  });
+
+  it("returns the published review, including rejected findings, without a login", async () => {
+    const [critical, warning] = await findings();
+    await decideFindingFor(critical!.id, { status: "confirmed" }, "lee", deps);
+    await decideFindingFor(warning!.id, { status: "rejected", rejectionReason: "Intended" }, "lee", deps);
+    await publishReviewFor(reviewId, null, "lee", deps);
+
+    const demo = await getDemoReview(PULL, deps);
+
+    expect(demo?.detail.review.id).toBe(reviewId);
+    expect(demo?.detail.findings.map((f) => f.status)).toEqual(["confirmed", "rejected"]);
+    expect(demo?.diff).toContain("src/cart.ts");
+  });
+
+  it("does not return reviews of other pull requests", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+    await publishReviewFor(reviewId, null, "lee", deps);
+
+    expect(await getDemoReview({ ...PULL, number: 8 }, deps)).toBeNull();
+    expect(await getDemoReview({ ...PULL, name: "other" }, deps)).toBeNull();
   });
 });

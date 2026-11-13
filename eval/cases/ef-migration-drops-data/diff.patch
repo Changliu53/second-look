@@ -1,0 +1,57 @@
+diff --git a/src/Platform.Data/Entities/Customer.cs b/src/Platform.Data/Entities/Customer.cs
+index 6d92b0b..b548ce0 100644
+--- a/src/Platform.Data/Entities/Customer.cs
++++ b/src/Platform.Data/Entities/Customer.cs
+@@ -5,5 +5,5 @@ public class Customer
+     public int Id { get; set; }
+     public int TenantId { get; set; }
+     public string Name { get; set; } = "";
+-    public string? Phone { get; set; }
++    public string? PrimaryPhone { get; set; }
+ }
+diff --git a/src/Platform.Data/Migrations/20260910153000_RenameCustomerPhone.cs b/src/Platform.Data/Migrations/20260910153000_RenameCustomerPhone.cs
+new file mode 100644
+index 0000000..e469336
+--- /dev/null
++++ b/src/Platform.Data/Migrations/20260910153000_RenameCustomerPhone.cs
+@@ -0,0 +1,40 @@
++using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace Platform.Data.Migrations
++{
++    /// <inheritdoc />
++    public partial class RenameCustomerPhone : Migration
++    {
++        /// <inheritdoc />
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropColumn(
++                name: "Phone",
++                table: "Customers");
++
++            migrationBuilder.AddColumn<string>(
++                name: "PrimaryPhone",
++                table: "Customers",
++                type: "nvarchar(32)",
++                maxLength: 32,
++                nullable: true);
++        }
++
++        /// <inheritdoc />
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropColumn(
++                name: "PrimaryPhone",
++                table: "Customers");
++
++            migrationBuilder.AddColumn<string>(
++                name: "Phone",
++                table: "Customers",
++                type: "nvarchar(32)",
++                maxLength: 32,
++                nullable: true);
++        }
++    }
++}

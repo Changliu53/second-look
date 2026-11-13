@@ -5,6 +5,7 @@ import {
   decideFinding,
   editFinding,
   getFinding,
+  getLatestPublishedReview,
   getReviewDetail,
   listOpenReviews,
   recordGithubReviewId,
@@ -16,6 +17,7 @@ import {
 import { checkRunFor } from "@/github/check-run";
 import type { GitHubClient } from "@/github/client";
 import { buildReviewPayload } from "@/github/publish";
+import type { PullRequestRef } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
 import { canReviewRepository } from "./access";
@@ -91,6 +93,29 @@ export async function getReviewFor(
     logEvent("dashboard_diff_fetch_failed", { reviewId, error: safeErrorCode(error) });
   }
   return { detail: loaded.detail, diff };
+}
+
+/**
+ * Loads the published review of the configured demo pull request. No login is
+ * needed: the PR is in a public repository and the review is already posted
+ * there. Unpublished reviews are never returned.
+ */
+export async function getDemoReview(
+  pull: PullRequestRef,
+  deps: DashboardDeps,
+): Promise<{ detail: ReviewDetail; diff: string | null } | null> {
+  const detail = await getLatestPublishedReview(deps.db, pull);
+  if (!detail) {
+    return null;
+  }
+  let diff: string | null = null;
+  try {
+    const github = await deps.githubFor(detail.repository.installationId);
+    diff = await github.getPullRequestDiff(detail.repository, pull.number);
+  } catch (error) {
+    logEvent("demo_diff_fetch_failed", { error: safeErrorCode(error) });
+  }
+  return { detail, diff };
 }
 
 function editableProblem(detail: ReviewDetail): string | null {

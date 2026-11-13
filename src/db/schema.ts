@@ -41,6 +41,10 @@ export const categoryEnum = pgEnum("finding_category", [
   "scope-creep",
   "missing-tests",
   "style",
+  // Added after the first release, so they come last: Postgres appends new
+  // enum values and the order here must match the migrations.
+  "access-control",
+  "data-loss",
 ]);
 
 export const findingStatusEnum = pgEnum("finding_status", [

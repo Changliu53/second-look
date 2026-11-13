@@ -1,0 +1,73 @@
+diff --git a/src/Platform.Data/Migrations/20260918101500_AddServiceRegionToWells.cs b/src/Platform.Data/Migrations/20260918101500_AddServiceRegionToWells.cs
+new file mode 100644
+index 0000000..961bdcc
+--- /dev/null
++++ b/src/Platform.Data/Migrations/20260918101500_AddServiceRegionToWells.cs
+@@ -0,0 +1,67 @@
++using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace Platform.Data.Migrations
++{
++    /// <inheritdoc />
++    public partial class AddServiceRegionToWells : Migration
++    {
++        /// <inheritdoc />
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.CreateTable(
++                name: "ServiceRegions",
++                columns: table => new
++                {
++                    Id = table.Column<int>(type: "int", nullable: false)
++                        .Annotation("SqlServer:Identity", "1, 1"),
++                    TenantId = table.Column<int>(type: "int", nullable: false),
++                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
++                },
++                constraints: table =>
++                {
++                    table.PrimaryKey("PK_ServiceRegions", x => x.Id);
++                });
++
++            migrationBuilder.AddColumn<int>(
++                name: "ServiceRegionId",
++                table: "Wells",
++                type: "int",
++                nullable: false,
++                defaultValue: 0);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_Wells_ServiceRegionId",
++                table: "Wells",
++                column: "ServiceRegionId");
++
++            migrationBuilder.AddForeignKey(
++                name: "FK_Wells_ServiceRegions_ServiceRegionId",
++                table: "Wells",
++                column: "ServiceRegionId",
++                principalTable: "ServiceRegions",
++                principalColumn: "Id",
++                onDelete: ReferentialAction.Cascade);
++        }
++
++        /// <inheritdoc />
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropForeignKey(
++                name: "FK_Wells_ServiceRegions_ServiceRegionId",
++                table: "Wells");
++
++            migrationBuilder.DropIndex(
++                name: "IX_Wells_ServiceRegionId",
++                table: "Wells");
++
++            migrationBuilder.DropColumn(
++                name: "ServiceRegionId",
++                table: "Wells");
++
++            migrationBuilder.DropTable(
++                name: "ServiceRegions");
++        }
++    }
++}

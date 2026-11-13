@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { CategoryBadge, SeverityBadge } from "@/components/badges";
 import { SummaryCard } from "@/components/summary-card";
 import type { PasteSuccess } from "@/paste/handle-paste";
+import { PASTE_EXAMPLES, type PasteExample } from "./examples";
 
 type FormState =
   | { phase: "idle" }
@@ -39,8 +40,27 @@ export function PasteForm() {
     setState(await requestReview(code, description));
   }
 
+  function loadExample(example: PasteExample) {
+    setCode(example.code);
+    setDescription(example.description);
+    setState({ phase: "idle" });
+  }
+
   return (
     <div className="mt-6">
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-slate-600">Load an example:</span>
+        {PASTE_EXAMPLES.map((example) => (
+          <button
+            key={example.label}
+            type="button"
+            onClick={() => loadExample(example)}
+            className="rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-50"
+          >
+            {example.label}
+          </button>
+        ))}
+      </div>
       <form onSubmit={onSubmit} className="space-y-3">
         <label className="block text-sm font-medium">
           What is this code supposed to do? (optional)

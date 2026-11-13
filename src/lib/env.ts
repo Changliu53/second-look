@@ -17,7 +17,7 @@ const limitsSchema = z.object({
   MAX_DIFF_CHARS: positiveInt(60_000),
   MAX_CONTEXT_CHARS: positiveInt(120_000),
   PASTE_MAX_CHARS: positiveInt(20_000),
-  PASTE_REQUESTS_PER_HOUR: positiveInt(5),
+  PASTE_REQUESTS_PER_HOUR: positiveInt(20),
   PASTE_DAILY_GLOBAL_LIMIT: positiveInt(100),
 });
 
@@ -62,4 +62,23 @@ export function requireEnv(
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
+}
+
+export type PullRequestRef = { owner: string; name: string; number: number };
+
+/**
+ * The pull request shown on the public /demo page, written as
+ * "owner/repo#number". Point it at a public repository only: the page shows
+ * that PR's published review to anyone, signed in or not.
+ */
+export function getDemoPullRequest(
+  env: EnvSource = process.env,
+): PullRequestRef | null {
+  const match = /^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(
+    env.DEMO_PULL_REQUEST?.trim() ?? "",
+  );
+  if (!match) {
+    return null;
+  }
+  return { owner: match[1]!, name: match[2]!, number: Number(match[3]) };
 }

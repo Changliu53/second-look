@@ -9,6 +9,7 @@ import {
   getPublishedReview,
   listReviewRounds,
   getReviewDetail,
+  isStaleRunning,
   listOpenReviews,
   listPublishedFindings,
   listPublishedFollowUps,
@@ -23,7 +24,8 @@ import {
   type ReviewListItem,
   type ReviewRound,
 } from "@/db/queries";
-import type { Repository } from "@/db/schema";
+import type { Repository, Review } from "@/db/schema";
+import type { PullRequestEvent } from "@/github/webhook-payload";
 import { checkRunFor } from "@/github/check-run";
 import type { GitHubClient } from "@/github/client";
 import { buildReviewPayload, type Resolution } from "@/github/publish";
@@ -64,6 +66,9 @@ export const ACTION_ERRORS = {
     "The finding was not saved. It needs a file from this pull request, a line, and an explanation.",
   not_ready: "Findings can be added once the AI review has finished.",
   github_rejected: "GitHub did not accept the review. Nothing was published. Try again.",
+  not_rerunnable: "Only a review that failed or did not finish can be run again.",
+  pull_request_closed: "The pull request is closed on GitHub, so it is not reviewed again.",
+  rerun_skipped: "The review was not started. Another run for this commit may already be going.",
 } as const;
 
 export type ActionErrorCode = keyof typeof ACTION_ERRORS;
@@ -510,6 +515,73 @@ export async function getInsightsFor(login: string, deps: DashboardDeps): Promis
     insights: summarizeDecisions(decided, published.flatMap((review) => review.followUp ?? [])),
     repositories: visible.map((repository) => `${repository.owner}/${repository.name}`),
     publishedReviews: published.length,
+  };
+}
+
+/** Why a review cannot be run again, or null if it can. */
+export function rerunProblem(review: Review, now: Date = new Date()): ActionErrorCode | null {
+  if (review.publishedAt !== null) {
+    return "already_published";
+  }
+  if (review.status === "superseded") {
+    return "out_of_date";
+  }
+  // A review that finished, or one still running normally, has nothing to
+  // recover. Running it again would only spend another model call.
+  if (review.status !== "failed" && !isStaleRunning(review, now)) {
+    return "not_rerunnable";
+  }
+  return null;
+}
+
+/**
+ * What a reviewer needs to start a failed review again: the pull request as
+ * GitHub has it now, in the shape a webhook delivers. Reading it from GitHub
+ * instead of the database means a new title, body, or commit is picked up.
+ */
+export async function prepareRerunFor(
+  reviewId: number,
+  login: string,
+  deps: DashboardDeps,
+): Promise<
+  | { ok: true; event: PullRequestEvent; github: GitHubClient }
+  | { ok: false; error: ActionErrorCode }
+> {
+  const loaded = await loadReviewFor(reviewId, login, deps);
+  if (!loaded) {
+    return { ok: false, error: "not_found" };
+  }
+  const { detail, github } = loaded;
+  const problem = rerunProblem(detail.review);
+  if (problem) {
+    return { ok: false, error: problem };
+  }
+  const { repository, pullRequest } = detail;
+  const current = await github.getPullRequest(repository, pullRequest.number);
+  if (current.state !== "open") {
+    return { ok: false, error: "pull_request_closed" };
+  }
+  return {
+    ok: true,
+    github,
+    event: {
+      action: "synchronize",
+      number: pullRequest.number,
+      pull_request: {
+        title: current.title,
+        body: current.body,
+        draft: current.draft,
+        user: { login: current.authorLogin },
+        head: { sha: current.headSha },
+        base: { ref: current.baseRef, sha: current.baseSha },
+      },
+      repository: {
+        id: repository.githubRepoId,
+        name: repository.name,
+        owner: { login: repository.owner },
+      },
+      installation: { id: repository.installationId },
+    },
   };
 }
 

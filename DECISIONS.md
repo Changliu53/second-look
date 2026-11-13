@@ -280,3 +280,8 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What:** Toasts are green with a check icon and a close button, and carry at most one action, styled as a small outlined button. A toast with an action stays twelve seconds instead of six.
 **Why:** The first version was a dark box with white text, the same look many products use for errors. The green-and-check convention is what most design systems use for a positive message, and it does not rely on colour alone because of the icon.
 
+## 53. A failed review can be run again from its page
+**What:** A review that failed, or has been "running" far longer than any review takes, shows "Run the review again". It reads the pull request from GitHub as it is now and starts the same run a webhook starts. The button waits only until the run has claimed the review, then returns to the page, which shows it running.
+**Why:** The only way to retry was to close and reopen the pull request, which notifies everyone watching it and is not something a reviewer should have to do to the author's pull request.
+**Rules:** Only failed or stuck reviews, so a finished review is never paid for twice by a stray click. Only for reviewers with write access, the same check as every other action. Not for a closed pull request. The run goes through the same claim as a webhook, so a webhook and a click for the same commit cannot both run.
+

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
 import {
   completeReview,
+  failReview,
   getReviewDetail,
   setCheckRunId,
   startGithubReview,
@@ -16,6 +17,8 @@ import {
   getDemoReview,
   getReviewFor,
   listReviewsFor,
+  prepareRerunFor,
+  rerunProblem,
   publishReviewFor,
   removeFindingFor,
   type DashboardDeps,
@@ -175,6 +178,53 @@ describe("editFindingFor", () => {
     expect(valid.ok).toBe(true);
     const [after] = await findings();
     expect(after).toMatchObject({ editedExplanation: "Clear text", editedSuggestedFix: null, status: "confirmed" });
+  });
+});
+
+describe("prepareRerunFor", () => {
+  async function failTheSeededReview() {
+    const { review } = await startGithubReview(db, { pullRequestId, headSha: "sha-9" });
+    await failReview(db, review.id, "model_timeout");
+    return review.id;
+  }
+
+  it("refuses a review that finished, so a finished review is not paid for twice", async () => {
+    const outcome = await prepareRerunFor(reviewId, "lee", deps);
+    expect(outcome).toEqual({ ok: false, error: "not_rerunnable" });
+  });
+
+  it("refuses users without write access with the same answer as a missing review", async () => {
+    const failed = await failTheSeededReview();
+    expect(await prepareRerunFor(failed, "reader", deps)).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("refuses when the pull request has been closed on GitHub", async () => {
+    const failed = await failTheSeededReview();
+    github.pullRequest = { ...github.pullRequest, state: "closed" };
+    expect(await prepareRerunFor(failed, "lee", deps)).toEqual({ ok: false, error: "pull_request_closed" });
+  });
+
+  it("builds the run from the pull request as GitHub has it now", async () => {
+    const failed = await failTheSeededReview();
+    github.pullRequest = { ...github.pullRequest, title: "Renamed since", headSha: "sha-10" };
+
+    const outcome = await prepareRerunFor(failed, "lee", deps);
+
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.event.pull_request.title).toBe("Renamed since");
+      expect(outcome.event.pull_request.head.sha).toBe("sha-10");
+      expect(outcome.event.installation.id).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("rerunProblem", () => {
+  it("allows a review that has been running far longer than any review takes", async () => {
+    const detail = (await getReviewDetail(db, reviewId))!;
+    const stuck = { ...detail.review, status: "running" as const, createdAt: new Date("2026-01-01T00:00:00Z") };
+    expect(rerunProblem(stuck, new Date("2026-01-01T02:00:00Z"))).toBeNull();
+    expect(rerunProblem({ ...stuck, createdAt: new Date("2026-01-01T01:59:30Z") }, new Date("2026-01-01T02:00:00Z"))).toBe("not_rerunnable");
   });
 });
 

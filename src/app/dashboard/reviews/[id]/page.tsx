@@ -12,11 +12,11 @@ import { ReviewProgress } from "@/components/review/review-progress";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
 import { BUTTON_APPROVE, BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
-import { ACTION_ERRORS, getReviewFor, type ActionErrorCode } from "@/dashboard/service";
+import { ACTION_ERRORS, getReviewFor, rerunProblem, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { fixPromptFor } from "@/github/publish";
 import { countByStatus, publishBlockedReason } from "@/sandbox/model";
-import { publishReviewAction } from "../../actions";
+import { publishReviewAction, rerunReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +36,10 @@ function lockedReason(detail: ReviewDetail): string | null {
     return "A newer commit was pushed to this pull request. This review is out of date.";
   }
   if (isStaleRunning(review)) {
-    return "The AI review did not finish. It may have timed out. Close and reopen the pull request to run it again.";
+    return "The AI review did not finish. It may have timed out.";
   }
   if (review.status === "failed") {
-    return "The AI review failed. Close and reopen the pull request to run it again.";
+    return "The AI review failed.";
   }
   return null;
 }
@@ -334,7 +334,20 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
             {error}
           </p>
         )}
-        {reason && (
+        {reason && rerunProblem(detail.review) === null && (
+          <form
+            action={rerunReviewAction}
+            className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+          >
+            <input type="hidden" name="reviewId" value={detail.review.id} />
+            <span className="min-w-0 flex-1">
+              {reason} Running it again reads the pull request from GitHub as it is now and makes
+              one model call.
+            </span>
+            <button className={BUTTON_PRIMARY_SMALL}>Run the review again</button>
+          </form>
+        )}
+        {reason && rerunProblem(detail.review) !== null && (
           <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             {reason}
             {detail.review.publishedAt !== null && (

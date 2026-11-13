@@ -116,6 +116,23 @@ describe("reviewPullRequest", () => {
     expect(github.fileRequests.map((r) => r.path)).not.toContain("package-lock.json");
   });
 
+  it("says which review it claimed before the model call, and claims nothing on a duplicate", async () => {
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
+    const claimed: number[] = [];
+    const promptsAtClaim: number[] = [];
+    const onClaimed = (id: number) => {
+      claimed.push(id);
+      promptsAtClaim.push(model.prompts.length);
+    };
+
+    await reviewPullRequest(event(), deps(model), { onClaimed });
+    await reviewPullRequest(event(), deps(model), { onClaimed });
+
+    expect(claimed).toEqual([(await onlyReview()).review.id]);
+    // Claimed before the slow part, so a reviewer is not kept waiting on it.
+    expect(promptsAtClaim).toEqual([0]);
+  });
+
   it("does nothing the second time the same commit is delivered", async () => {
     const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });
 

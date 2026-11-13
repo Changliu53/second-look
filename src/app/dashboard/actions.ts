@@ -13,6 +13,9 @@ import {
   type ActionResult,
 } from "@/dashboard/service";
 import { dashboardDeps } from "./deps";
+import { after } from "next/server";
+import { startReview } from "@/github/run-review";
+import { prepareRerunFor } from "@/dashboard/service";
 
 /**
  * Server actions for the dashboard forms. Each one: read and validate the
@@ -147,3 +150,27 @@ export async function signInAction(): Promise<void> {
 export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: "/" });
 }
+
+/**
+ * Runs a failed or unfinished review again. Waits only until the new run
+ * owns the review, so the page it returns to already shows it running; the
+ * rest of the review continues after the response, like a webhook's.
+ */
+export async function rerunReviewAction(formData: FormData): Promise<void> {
+  const login = await requireLogin();
+  const reviewId = idSchema.parse(formData.get("reviewId"));
+  const prepared = await prepareRerunFor(reviewId, login, dashboardDeps());
+  if (!prepared.ok) {
+    finish(reviewId, prepared);
+  }
+  const run = startReview(prepared.event, prepared.github);
+  after(() => run.done);
+  const claimedId = await run.claimed;
+  if (claimedId === null) {
+    finish(reviewId, { ok: false, error: "rerun_skipped" });
+  }
+  revalidatePath("/dashboard");
+  // A new commit since the failure gets a review row of its own.
+  redirect(reviewPath(claimedId));
+}
+

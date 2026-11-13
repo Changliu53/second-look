@@ -213,7 +213,20 @@ async function runReview(
  * findings as "pending", and update the check run. Never throws; a failure is
  * recorded on the review row and shown on the check run.
  */
-export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDeps): Promise<void> {
+export type ReviewHooks = {
+  /**
+   * Called once this run owns the review row and has marked it running, and
+   * before any slow work. A reviewer who starts a review by hand is sent back
+   * to the page at that moment, so the page shows it running.
+   */
+  onClaimed?: (reviewId: number) => void;
+};
+
+export async function reviewPullRequest(
+  event: PullRequestEvent,
+  deps: ReviewDeps,
+  hooks: ReviewHooks = {},
+): Promise<void> {
   const repo: RepoRef = { owner: event.repository.owner.login, name: event.repository.name };
   const headSha = event.pull_request.head.sha;
 
@@ -250,6 +263,7 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
     logEvent("review_skipped_duplicate", { reviewId: review.id });
     return;
   }
+  hooks.onClaimed?.(review.id);
 
   const checkRunId = await createCheck(deps, repo, headSha, review.id);
 

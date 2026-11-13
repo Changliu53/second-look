@@ -1,6 +1,7 @@
 import type {
   CheckRunUpdate,
   GitHubClient,
+  PullRequestSnapshot,
   RepoRef,
   ReviewPayload,
 } from "@/github/client";
@@ -22,6 +23,17 @@ export class FakeGitHub implements GitHubClient {
   failOn: "diff" | "createCheckRun" | "createReview" | null = null;
   /** When set, getPullRequestDiff throws this exact error. */
   diffError: Error | null = null;
+  /** What getPullRequest returns. */
+  pullRequest: PullRequestSnapshot = {
+    title: "Add cart total",
+    body: null,
+    draft: false,
+    state: "open",
+    authorLogin: "author",
+    headSha: "sha-1",
+    baseRef: "main",
+    baseSha: "base-sha",
+  };
 
   setFile(path: string, ref: string, content: string): void {
     this.files.set(`${path}@${ref}`, content);
@@ -73,6 +85,10 @@ export class FakeGitHub implements GitHubClient {
 
   async getPermission(_repo: RepoRef, username: string): Promise<string> {
     return this.permissions.get(username) ?? "none";
+  }
+
+  async getPullRequest(): Promise<PullRequestSnapshot> {
+    return this.pullRequest;
   }
 
   lastCheckUpdate(): CheckRunUpdate | undefined {

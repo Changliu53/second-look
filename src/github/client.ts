@@ -24,6 +24,18 @@ export type ReviewComment = {
   start_side?: "RIGHT";
 };
 
+/** A pull request as GitHub has it now: what a new review needs to start. */
+export type PullRequestSnapshot = {
+  title: string;
+  body: string | null;
+  draft: boolean;
+  state: "open" | "closed";
+  authorLogin: string;
+  headSha: string;
+  baseRef: string;
+  baseSha: string;
+};
+
 export type ReviewPayload = {
   commitId: string;
   body: string;
@@ -54,6 +66,8 @@ export interface GitHubClient {
   createReview(repo: RepoRef, pullNumber: number, payload: ReviewPayload): Promise<number>;
   /** "admin", "write", "read" or "none". */
   getPermission(repo: RepoRef, username: string): Promise<string>;
+  /** The pull request as it is now. Used to start a review again by hand. */
+  getPullRequest(repo: RepoRef, pullNumber: number): Promise<PullRequestSnapshot>;
 }
 
 /** GitHub will not produce a diff above its own size limits (HTTP 406). */
@@ -194,6 +208,24 @@ class OctokitGitHubClient implements GitHubClient {
       },
     );
     return Number(response.data.id);
+  }
+
+  async getPullRequest(repo: RepoRef, pullNumber: number): Promise<PullRequestSnapshot> {
+    const { data } = await this.octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
+      owner: repo.owner,
+      repo: repo.name,
+      pull_number: pullNumber,
+    });
+    return {
+      title: data.title,
+      body: data.body ?? null,
+      draft: data.draft ?? false,
+      state: data.state === "open" ? "open" : "closed",
+      authorLogin: data.user?.login ?? "",
+      headSha: data.head.sha,
+      baseRef: data.base.ref,
+      baseSha: data.base.sha,
+    };
   }
 
   async getPermission(repo: RepoRef, username: string): Promise<string> {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ALL_DECIDED_MESSAGE, Toast } from "./toast";
+import { ALL_DECIDED_MESSAGE, NOTHING_TO_SEND_MESSAGE, TOAST_ACTION, Toast } from "./toast";
 
 /**
  * Shown on the review page right after the action that decided the last
@@ -9,7 +9,7 @@ import { ALL_DECIDED_MESSAGE, Toast } from "./toast";
  * this removes the marker once shown, so reloading the page does not announce
  * it a second time.
  */
-export function AllDecidedToast() {
+export function AllDecidedToast({ nothingToSend }: { nothingToSend: boolean }) {
   const [open, setOpen] = useState(true);
   const close = useCallback(() => setOpen(false), []);
 
@@ -24,11 +24,11 @@ export function AllDecidedToast() {
   }
   return (
     <Toast
-      message={ALL_DECIDED_MESSAGE}
+      message={nothingToSend ? NOTHING_TO_SEND_MESSAGE : ALL_DECIDED_MESSAGE}
       onDone={close}
       action={
-        <a href="#publish" className="font-medium underline underline-offset-2" onClick={close}>
-          Go to publish
+        <a href="#publish" className={TOAST_ACTION} onClick={close}>
+          {nothingToSend ? "Approve" : "Publish"}
         </a>
       }
     />

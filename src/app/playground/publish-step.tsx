@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ReasonTip } from "@/components/reason-tip";
 import { FixPromptBlock } from "@/components/review/fix-prompt-block";
-import { BUTTON_PRIMARY, INPUT, LINK, SECTION_LABEL } from "@/components/ui";
+import { BUTTON_APPROVE, BUTTON_PRIMARY, INPUT, LINK, SECTION_LABEL } from "@/components/ui";
 import type { Finding } from "@/db/schema";
 import { fixPromptFor, type Resolution } from "@/github/publish";
 
@@ -38,6 +38,7 @@ export function PublishStep({
   onNote,
   onPublish,
   onSeeAuthor,
+  onBack,
 }: {
   /** Stands in for the pull request title in the fix prompt. */
   title: string;
@@ -49,6 +50,8 @@ export function PublishStep({
   onNote: (note: string) => void;
   onPublish: (resolution: Resolution) => void;
   onSeeAuthor: () => void;
+  /** Back to the findings, to add one of the reviewer's own. */
+  onBack: () => void;
 }) {
   const [chosen, setChosen] = useState<Resolution>("author_fixes");
   // Once published, the mode that was used is shown and cannot be changed.
@@ -57,6 +60,60 @@ export function PublishStep({
   const rejected = findings.filter((finding) => finding.status === "rejected").length;
   const critical = confirmed.filter((finding) => finding.severity === "critical").length;
   const authorPrompt = fixPromptFor(title, findings, "author");
+  // Every finding rejected, none added: the reviewer is approving the change.
+  const approving = confirmed.length === 0 && blocked === null;
+
+  if (approving) {
+    return (
+      <div className="space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold tracking-tight">Approve the pull request</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
+            You rejected every finding, so there is nothing to send back. Approving posts a short
+            review saying no changes are needed, and the check passes. The{" "}
+            {plural(rejected, "rejected finding")} and your reasons stay in Second Look.
+          </p>
+        </header>
+
+        {published && (
+          <p role="status" className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-950">
+            Approved (simulated).{" "}
+            <button className={LINK} onClick={onSeeAuthor}>
+              See what the author gets
+            </button>
+          </p>
+        )}
+
+        <label className="block text-sm">
+          Note to the author (optional)
+          <textarea
+            rows={2}
+            maxLength={2000}
+            value={note}
+            readOnly={published !== null}
+            placeholder="For example: looks good, thanks."
+            onChange={(event) => onNote(event.target.value)}
+            className={`mt-1 ${INPUT}`}
+          />
+        </label>
+
+        {!published && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+            <button className={BUTTON_APPROVE} onClick={() => onPublish("author_fixes")}>
+              Approve: no changes needed
+            </button>
+            <span className="text-xs leading-relaxed text-green-950">
+              Saw something the first pass missed?{" "}
+              <button className={LINK} onClick={onBack}>
+                Go back and add a finding
+              </button>{" "}
+              instead.
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

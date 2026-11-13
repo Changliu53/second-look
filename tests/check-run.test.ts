@@ -40,9 +40,10 @@ describe("checkRunFor", () => {
     expect(check).toMatchObject({ status: "completed", conclusion: "success" });
   });
 
-  it("succeeds when the reviewer confirmed nothing", () => {
+  it("reads as an approval when the reviewer confirmed nothing", () => {
     const check = checkRunFor({ kind: "published", confirmedCount: 0, confirmedCriticalCount: 0 });
     expect(check.conclusion).toBe("success");
+    expect(check.title).toBe("No changes needed");
   });
 
   it("fails, and does not pass, when the review itself failed", () => {

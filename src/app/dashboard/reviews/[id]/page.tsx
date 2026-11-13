@@ -11,7 +11,7 @@ import { parseComposeTarget } from "@/dashboard/compose-target";
 import { ReviewProgress } from "@/components/review/review-progress";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
-import { BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
+import { BUTTON_APPROVE, BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { ACTION_ERRORS, getReviewFor, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { fixPromptFor } from "@/github/publish";
@@ -119,6 +119,44 @@ function PublishForm({ detail }: { detail: ReviewDetail }) {
   ).length;
   const authorPrompt = fixPromptFor(detail.pullRequest.title, detail.findings, "author");
   const author = detail.pullRequest.authorLogin;
+  // Every finding decided and none confirmed: the reviewer is approving.
+  const approving = blocked === null && counts.confirmed === 0;
+
+  if (approving) {
+    return (
+      <form
+        id="publish"
+        action={publishReviewAction}
+        className="mt-8 scroll-mt-20 rounded-lg border border-green-200 bg-green-50 p-5"
+      >
+        <input type="hidden" name="reviewId" value={detail.review.id} />
+        <h2 className={`${SECTION_LABEL} !text-green-900`}>Approve</h2>
+        <p className="mt-2 text-sm leading-relaxed text-green-950">
+          {detail.findings.length === 0
+            ? "The first pass found nothing. "
+            : `You rejected all ${detail.findings.length} findings, so there is nothing to send back. `}
+          Approving posts a short review telling {author} that no changes are needed, and the
+          check passes. Rejected findings and your reasons stay here.
+        </p>
+        <label className="mt-4 block text-sm text-green-950">
+          Note to {author} (optional)
+          <textarea
+            name="note"
+            rows={2}
+            maxLength={2000}
+            placeholder="For example: looks good, thanks."
+            className={`mt-1 ${INPUT}`}
+          />
+        </label>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button className={BUTTON_APPROVE}>Approve: no changes needed</button>
+          <span className="text-xs text-green-950">
+            Saw something the first pass missed? Click the + next to a line to add it instead.
+          </span>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <form
@@ -287,7 +325,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
       {/* Set by the action that decided the last pending finding. Checked
           against the data too, so a stale or hand-typed URL announces nothing. */}
       {query.decided === "all" && !locked && countByStatus(detail.findings).pending === 0 && (
-        <AllDecidedToast />
+        <AllDecidedToast nothingToSend={countByStatus(detail.findings).confirmed === 0} />
       )}
 
       <main className="mx-auto max-w-5xl px-5 py-8">

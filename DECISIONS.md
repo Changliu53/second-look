@@ -267,3 +267,16 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Details:** Only published reviews count, because a decision can change until then. Findings a reviewer wrote are left out of the confirmed share: they are always confirmed and would flatter it. The page reads the database only and calls no model.
 **Limit:** The numbers are small on a new installation, and a share of a handful of findings says little. The page shows the counts next to every share for that reason.
 
+## 50. Rejecting every finding is an approval
+**What:** When nothing is pending and nothing is confirmed, the publish step becomes "Approve: no changes needed". The review posted to GitHub says so in its first line, carries the reviewer's note if any, and nothing else; the check passes with "No changes needed". The dashboard list and the rounds strip say "approved, no changes".
+**Why:** Before, a reviewer who turned down every finding was shown the same publish form, with "who makes the fixes?" gone and a button that said "Publish review" over nothing. It was not clear that this is the good outcome: the change is fine as it is.
+**Details:** The first pass's summary is left out of an approval. It is written before the reviewer decides and often names the problems the reviewer turned down, so under "No changes needed" it read as a contradiction. The review is still posted as a comment, not a GitHub approval: an app's approval does not count towards required reviews, and the passing check is what branch protection reads.
+
+## 51. Writing your own finding is pointed out, not only available
+**What:** The "+" beside each line number is faintly visible on every line instead of appearing only on hover, and fully visible on touch screens, which have no hover. A tip above the code says the first pass can miss things and how to add a finding; it goes away when dismissed or when the reviewer adds one, and the browser remembers. After the last decision the bottom bar asks whether anything was missed before publishing, and the approve step offers to go back and add one.
+**Why:** People using the product went through the AI's findings and did not know they could write their own. A control that appears only on hover is found by people who already know it is there; other review tools get the same complaint about their line-comment buttons.
+
+## 52. Success messages look like success
+**What:** Toasts are green with a check icon and a close button, and carry at most one action, styled as a small outlined button. A toast with an action stays twelve seconds instead of six.
+**Why:** The first version was a dark box with white text, the same look many products use for errors. The green-and-check convention is what most design systems use for a positive message, and it does not rely on colour alone because of the icon.
+

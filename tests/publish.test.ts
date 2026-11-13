@@ -109,14 +109,32 @@ describe("buildReviewPayload", () => {
   });
 
   it("puts the plain-English summary at the top of the review body", () => {
-    const payload = buildReviewPayload({ ...base, findings: [] });
+    const payload = buildReviewPayload({ ...base, findings: [finding()] });
 
     expect(payload.commitId).toBe("abc123");
     expect(payload.body.startsWith("## Second Look review")).toBe(true);
     expect(payload.body).toContain("Changes the cart total loop.");
     expect(payload.body).toContain("**Risk:** high");
     expect(payload.body).toContain("- Check the total with two items.");
-    expect(payload.body).toContain("0 findings confirmed by lee");
+    expect(payload.body).toContain("1 finding confirmed by lee");
+  });
+
+  it("reads as an approval when nothing was confirmed, without the first pass's summary", () => {
+    const payload = buildReviewPayload({
+      ...base,
+      findings: [finding({ status: "rejected", explanation: "REJECTED_ONE" })],
+    });
+
+    expect(payload.body.startsWith("**No changes needed.** lee reviewed this pull request")).toBe(true);
+    // The summary was written before the reviewer decided and can name the
+    // problems they turned down, so an approval leaves it out.
+    expect(payload.body).not.toContain("Changes the cart total loop.");
+    expect(payload.body).not.toContain("**Risk:**");
+    expect(payload.body).not.toContain("Check the total with two items.");
+    expect(payload.body).not.toContain("REJECTED_ONE");
+    expect(payload.body).not.toContain("Fix these with your AI tool");
+    expect(payload.body.trimEnd().endsWith("checked by lee._")).toBe(true);
+    expect(payload.comments).toEqual([]);
   });
 
   it("lists findings without a valid inline position in the body instead of dropping them", () => {

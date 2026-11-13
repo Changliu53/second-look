@@ -54,6 +54,17 @@ export function checkRunFor(state: CheckState): CheckRunUpdate {
             : `A reviewer confirmed ${plural(state.confirmedCriticalCount, "critical finding")}. Push a fix to start a new review.`,
         };
       }
+      if (state.confirmedCount === 0) {
+        // The reviewer turned down every finding, or there were none: this
+        // is an approval, and it should read like one.
+        return {
+          status: "completed",
+          conclusion: "success",
+          title: "No changes needed",
+          summary:
+            "A reviewer went through the first pass and confirmed no findings. Nothing needs to change.",
+        };
+      }
       return {
         status: "completed",
         conclusion: "success",

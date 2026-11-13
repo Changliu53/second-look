@@ -13,6 +13,7 @@ import { FollowUpPanel } from "./follow-up-panel";
 import { RoundsStrip } from "./rounds-strip";
 import { FindingCard } from "./finding-card";
 import { FindingFields } from "./finding-fields";
+import { AddFindingTip } from "./add-finding-tip";
 
 function Composer({ reviewId, target }: { reviewId: number; target: ComposeTarget }) {
   return (
@@ -105,13 +106,12 @@ export function ReviewContent({
         </p>
       )}
 
+      {!locked && view.files.length > 0 && <AddFindingTip />}
       {!locked && view.files.length > 0 && (
         <p className="mt-4 text-xs leading-relaxed text-ink-soft">
           <span className="font-medium text-ink">Confirm</span> sends a finding to the author.{" "}
           <span className="font-medium text-ink">Reject</span> keeps it here and the author never
           sees it. <span className="font-medium text-ink">Edit</span> rewrites it in your words.
-          Missed something? Hover a line and click{" "}
-          <span className="rounded bg-accent px-1 font-bold text-white">+</span> to add your own.
         </p>
       )}
 

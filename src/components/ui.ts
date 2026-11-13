@@ -10,6 +10,10 @@ export const BUTTON_PRIMARY =
 export const BUTTON_PRIMARY_SMALL =
   "inline-flex items-center justify-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50";
 
+/** The primary button for an approval: the same shape, in green. */
+export const BUTTON_APPROVE =
+  "inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50";
+
 export const BUTTON_CONFIRM =
   "inline-flex items-center justify-center gap-1.5 rounded-md border border-green-700 bg-green-700 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-green-800";
 

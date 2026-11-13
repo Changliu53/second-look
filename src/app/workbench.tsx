@@ -9,7 +9,8 @@ import { FindingKeys } from "@/components/review/finding-keys";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
 import { SummaryCard } from "@/components/summary-card";
-import { ALL_DECIDED_MESSAGE, Toast } from "@/components/toast";
+import { ALL_DECIDED_MESSAGE, NOTHING_TO_SEND_MESSAGE, TOAST_ACTION, Toast } from "@/components/toast";
+import { AddFindingTip, rememberAddFindingTipSeen } from "@/components/review/add-finding-tip";
 import { BUTTON, BUTTON_PRIMARY, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { Finding } from "@/db/schema";
@@ -155,9 +156,11 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
   /** The simulated publish: nothing leaves the browser. */
   function publish(resolution: Resolution) {
     setPublished(resolution);
+    const nothingSent = countByStatus(findings).confirmed === 0;
     setToast({
-      message:
-        resolution === "reviewer_takes_over"
+      message: nothingSent
+        ? "Approved (simulated). The author is told no changes are needed, and the check passes."
+        : resolution === "reviewer_takes_over"
           ? "Published (simulated). The author is told you are taking this over."
           : "Published (simulated). The author gets your comments and the fix prompt.",
     });
@@ -195,14 +198,17 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
   // The decision that leaves nothing pending is worth announcing: the review
   // is done and the next thing to do is publish. Watched as a change in the
   // count, so it holds however the last decision was made (button or key).
-  const pendingCount = countByStatus(findings).pending;
+  const { pending: pendingCount, confirmed: confirmedCount } = countByStatus(findings);
   const previousPending = useRef(pendingCount);
   useEffect(() => {
     if (previousPending.current > 0 && pendingCount === 0 && findings.length > 0) {
-      setToast({ message: ALL_DECIDED_MESSAGE, toPublish: true });
+      setToast({
+        message: confirmedCount === 0 ? NOTHING_TO_SEND_MESSAGE : ALL_DECIDED_MESSAGE,
+        toPublish: true,
+      });
     }
     previousPending.current = pendingCount;
-  }, [pendingCount, findings.length]);
+  }, [pendingCount, confirmedCount, findings.length]);
 
   return (
     // The page is a column: top bar, a one-line introduction, then the two
@@ -352,13 +358,13 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
           action={
             toast.toPublish ? (
               <button
-                className="font-medium underline underline-offset-2"
+                className={TOAST_ACTION}
                 onClick={() => {
                   setToast(null);
                   showStep("publish");
                 }}
               >
-                Continue to publish
+                {confirmedCount === 0 ? "Approve" : "Publish"}
               </button>
             ) : undefined
           }
@@ -514,6 +520,7 @@ function ResultPane({
         suggestedFix: suggestedFix === "" ? null : suggestedFix,
       },
     });
+    rememberAddFindingTipSeen();
     setComposing(null);
   }
 
@@ -565,6 +572,7 @@ function ResultPane({
             onNote={onNote}
             onPublish={onPublish}
             onSeeAuthor={() => onStep("author")}
+            onBack={() => onStep("review")}
           />
         )}
         {step === "author" && published && (
@@ -599,13 +607,13 @@ function ResultPane({
                 <FindingOutline findings={findings} />
               </div>
             )}
+            {!published && <AddFindingTip />}
             {!published && (
               <p className="mt-3 text-xs leading-relaxed text-ink-soft">
                 <span className="font-medium text-ink">Confirm</span> sends a finding to the author.{" "}
-          <span className="font-medium text-ink">Reject</span> keeps it here and the author never
-          sees it. <span className="font-medium text-ink">Edit</span> rewrites it in your words.
-          Missed something? Hover a line and click{" "}
-          <span className="rounded bg-accent px-1 font-bold text-white">+</span> to add your own.
+                <span className="font-medium text-ink">Reject</span> keeps it here and the author
+                never sees it. <span className="font-medium text-ink">Edit</span> rewrites it in your
+                words.
                 <span className="hidden lg:inline">
                   {" "}
                   Keys: <kbd className={KBD}>j</kbd> <kbd className={KBD}>k</kbd> move,{" "}
@@ -690,17 +698,23 @@ function ResultPane({
                     disabled={blocked !== null}
                     onClick={() => onStep("publish")}
                   >
-                    Continue to publish
+                    {!blocked && counts.confirmed === 0 ? "Continue to approve" : "Continue to publish"}
                   </button>
                 </ReasonTip>
                 <span className="text-xs text-ink-soft">
                   {/* The long form is also the tooltip, which a phone cannot hover. */}
                   <span className="sm:hidden">
-                    {blocked ? `${counts.pending} still pending` : `${counts.confirmed} to send`}
+                    {blocked
+                      ? `${counts.pending} still pending`
+                      : counts.confirmed === 0
+                        ? "Nothing to send"
+                        : `${counts.confirmed} to send`}
                   </span>
                   <span className="hidden sm:inline">
                     {blocked ??
-                      `All decided: ${counts.confirmed} to send, ${counts.rejected} rejected.`}
+                      (counts.confirmed === 0
+                        ? "All rejected. Nothing to send: you can approve the pull request as it is."
+                        : `All decided: ${counts.confirmed} to send, ${counts.rejected} rejected. Anything the first pass missed? Add it with + before you publish.`)}
                   </span>
                 </span>
               </div>

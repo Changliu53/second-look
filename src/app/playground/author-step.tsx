@@ -45,7 +45,9 @@ export function AuthorStep({
 }) {
   const [copied, setCopied] = useState(false);
   const confirmed = findings.filter((finding) => finding.status === "confirmed");
-  const takenOver = resolution === "reviewer_takes_over";
+  // Nothing confirmed is an approval: nobody has anything to fix.
+  const approved = confirmed.length === 0;
+  const takenOver = !approved && resolution === "reviewer_takes_over";
   const parts = buildReviewParts({
     headSha: "",
     summary,
@@ -81,10 +83,10 @@ export function AuthorStep({
       <header>
         <h2 className="text-lg font-semibold tracking-tight">What the author gets on GitHub</h2>
         <p className="mt-1 text-sm leading-relaxed text-slate-600">
-          Simulated: nothing left your browser. On a real pull request this is the first time the
-          author hears from Second Look: one review, written as if by you, with the{" "}
-          {confirmed.length} finding{confirmed.length === 1 ? "" : "s"} you confirmed. Rejected
-          findings and your reasons stay in Second Look.
+          Simulated: nothing left your browser.{" "}
+          {approved
+            ? "On a real pull request the author gets a short review saying no changes are needed, and the check passes. The findings you rejected and your reasons stay in Second Look."
+            : `On a real pull request this is the first time the author hears from Second Look: one review, written as if by you, with the ${confirmed.length} finding${confirmed.length === 1 ? "" : "s"} you confirmed. Rejected findings and your reasons stay in Second Look.`}
         </p>
       </header>
 
@@ -142,6 +144,13 @@ export function AuthorStep({
 
       <section className="rounded-lg border border-edge bg-surface-raised p-4 text-sm">
         <p className={SECTION_LABEL}>What happens next</p>
+        {approved ? (
+          <p className="mt-2 leading-relaxed">
+            Nothing. The check has passed, so the pull request can be merged. If the author pushes
+            again, the new commit is reviewed like any other, and the findings you rejected here
+            are not raised again.
+          </p>
+        ) : (
         <ol className="mt-2 list-decimal space-y-1 pl-5 leading-relaxed">
           <li>
             {takenOver
@@ -154,6 +163,7 @@ export function AuthorStep({
           </li>
           <li>You publish again, and the check turns green when no critical finding is left.</li>
         </ol>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Link href="/example" className={BUTTON_PRIMARY}>
             See round two on real pull requests

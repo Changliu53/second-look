@@ -14,7 +14,7 @@ function outcome(round: ReviewRound): { text: string; className: string } {
 
 function resolutionText(round: ReviewRound): string {
   if (round.confirmedCount === 0) {
-    return "nothing to send";
+    return "approved, no changes";
   }
   const sent = `${round.confirmedCount} sent`;
   if (round.resolution === "reviewer_takes_over") {

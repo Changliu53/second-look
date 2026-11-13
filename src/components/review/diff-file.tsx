@@ -32,7 +32,10 @@ export function AddOnLine({ line }: { line: number }) {
     <span className="flex items-center justify-end gap-1.5">
       <span
         aria-hidden
-        className="grid size-4 place-items-center rounded bg-accent text-[0.6875rem] font-bold leading-none text-white opacity-0 group-hover/line:opacity-100 group-focus-within/line:opacity-100"
+        // Faint on every line, so it can be found without knowing to hover;
+        // full on the hovered line; full everywhere on a touch screen,
+        // which has no hover.
+        className="grid size-4 place-items-center rounded bg-accent text-[0.6875rem] font-bold leading-none text-white opacity-20 transition-opacity group-hover/line:opacity-100 group-focus-within/line:opacity-100 [@media(hover:none)]:opacity-100"
       >
         +
       </span>

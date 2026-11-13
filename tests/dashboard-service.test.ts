@@ -178,6 +178,23 @@ describe("editFindingFor", () => {
   });
 });
 
+describe("approving with nothing to send", () => {
+  it("publishes an approval and passes the check when every finding was rejected", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "rejected", rejectionReason: null }, "lee", deps);
+    }
+
+    const outcome = await publishReviewFor(reviewId, "Looks good", "lee", deps);
+
+    expect(outcome.ok).toBe(true);
+    const { payload } = github.reviews[0]!;
+    expect(payload.body).toContain("**No changes needed.**");
+    expect(payload.body).toContain("Looks good");
+    expect(payload.comments).toEqual([]);
+    expect(JSON.stringify(github.checkRunUpdates.at(-1))).toContain("No changes needed");
+  });
+});
+
 describe("getInsightsFor", () => {
   it("counts decisions only once the review is published, and only for repositories the user may review", async () => {
     const [first, second] = await findings();

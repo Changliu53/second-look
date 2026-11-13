@@ -172,6 +172,10 @@ export function fixPromptSection(prompt: string): string {
   ].join("\n");
 }
 
+function noChangesNotice(reviewerLogin: string): string {
+  return `**No changes needed.** ${reviewerLogin} reviewed this pull request and has nothing for you to fix.`;
+}
+
 function takeOverNotice(reviewerLogin: string): string {
   return `**${reviewerLogin} is taking this pull request over and will make the fixes.** You do not need to change anything. The comments explain what was found, so the same problems are easier to avoid next time.`;
 }
@@ -218,13 +222,23 @@ export function buildReviewParts(input: PublishInput): ReviewParts {
     }
   }
 
-  const takenOver = input.resolution === "reviewer_takes_over";
+  // Nothing confirmed is an approval, whichever mode was picked: there is
+  // nothing to fix, so nobody is fixing it.
+  const nothingToFix = confirmed.length === 0;
+  const takenOver = !nothingToFix && input.resolution === "reviewer_takes_over";
   const sections: string[] = [];
-  if (takenOver) {
+  if (nothingToFix) {
+    sections.push(noChangesNotice(input.reviewerLogin));
+  } else if (takenOver) {
     sections.push(takeOverNotice(input.reviewerLogin));
   }
-  // When the reviewer fixes it, the author has nothing to double check.
-  sections.push(formatSummary(takenOver ? { ...input.summary, doubleCheck: [] } : input.summary));
+  // An approval leaves the first pass's summary out. It is written before
+  // the reviewer decides, and often names the very problems the reviewer
+  // turned down, which reads as a contradiction under "No changes needed".
+  if (!nothingToFix) {
+    // When the reviewer fixes it, the author has nothing to double check.
+    sections.push(formatSummary(takenOver ? { ...input.summary, doubleCheck: [] } : input.summary));
+  }
   if (input.reviewerNote?.trim()) {
     sections.push(`**Note from the reviewer**\n${input.reviewerNote.trim()}`);
   }
@@ -240,7 +254,9 @@ export function buildReviewParts(input: PublishInput): ReviewParts {
     fixPrompt: takenOver
       ? null
       : fixPromptFor(input.pullRequestTitle ?? "this pull request", input.findings, "author"),
-    footer: `_First pass by Second Look. ${count} finding${count === 1 ? "" : "s"} confirmed by ${input.reviewerLogin}._`,
+    footer: nothingToFix
+      ? `_First pass by Second Look, checked by ${input.reviewerLogin}._`
+      : `_First pass by Second Look. ${count} finding${count === 1 ? "" : "s"} confirmed by ${input.reviewerLogin}._`,
     comments,
   };
 }

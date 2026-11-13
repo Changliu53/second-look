@@ -189,7 +189,16 @@ export default async function InsightsPage({ searchParams }: PageProps) {
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">How the first pass is doing</h1>
-          <PeriodPicker current={period} />
+          <div className="flex flex-wrap items-center gap-3">
+            <PeriodPicker current={period} />
+            <a
+              href={`/dashboard/insights/export?days=${period ?? "all"}`}
+              className={`${LINK} text-xs`}
+              title="Every decision in this period, as a spreadsheet. No code and no finding text."
+            >
+              Download decisions (CSV)
+            </a>
+          </div>
         </div>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
           Every Confirm and Reject is a reviewer saying whether a finding was worth sending. This

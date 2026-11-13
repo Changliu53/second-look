@@ -949,6 +949,54 @@ export async function listPublishedFindings(
     );
 }
 
+/**
+ * Every decided finding of published reviews in these repositories, with
+ * where it was and who decided, for an export. No finding text and no code.
+ */
+export async function listDecisionsForExport(
+  db: Database,
+  repositoryIds: number[],
+  since: Date | null,
+) {
+  if (repositoryIds.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      owner: repositories.owner,
+      repo: repositories.name,
+      pullNumber: pullRequests.number,
+      pullTitle: pullRequests.title,
+      reviewId: reviews.id,
+      headSha: reviews.headSha,
+      filePath: findings.filePath,
+      startLine: findings.startLine,
+      severity: findings.severity,
+      category: findings.category,
+      source: findings.source,
+      status: findings.status,
+      edited: findings.editedExplanation,
+      rejectionReason: findings.rejectionReason,
+      decidedBy: findings.decidedBy,
+      decidedAt: findings.decidedAt,
+      publishedBy: reviews.publishedBy,
+      publishedAt: reviews.publishedAt,
+    })
+    .from(findings)
+    .innerJoin(reviews, eq(findings.reviewId, reviews.id))
+    .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
+    .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
+    .where(
+      and(
+        isNotNull(reviews.publishedAt),
+        since ? gte(reviews.publishedAt, since) : undefined,
+        ne(findings.status, "pending"),
+        inArray(pullRequests.repositoryId, repositoryIds),
+      ),
+    )
+    .orderBy(desc(reviews.publishedAt), findings.filePath, findings.startLine);
+}
+
 /** How many reviews have been published in the given repositories, and their follow-up verdicts. */
 export async function listPublishedFollowUps(
   db: Database,

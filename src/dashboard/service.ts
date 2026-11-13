@@ -12,6 +12,7 @@ import {
   isStaleRunning,
   latestActivity,
   latestReviewId,
+  listDecisionsForExport,
   listFindingEvents,
   listOpenReviews,
   listPublishedFindings,
@@ -39,6 +40,7 @@ import { CATEGORIES, SEVERITIES } from "@/review/schema";
 import { canReviewRepository, PermissionCache } from "@/github/access";
 import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
 import { summarizeDecisions, type DecidedFinding, type Insights } from "./insights";
+import { toCsv } from "@/lib/csv";
 
 /**
  * Everything the dashboard can do, as plain functions. The Next.js pages and
@@ -516,13 +518,8 @@ export type InsightsView = {
 export const INSIGHT_PERIODS = [30, 90, null] as const;
 export type InsightPeriod = (typeof INSIGHT_PERIODS)[number];
 
-export async function getInsightsFor(
-  login: string,
-  deps: DashboardDeps,
-  period: InsightPeriod = 90,
-  now: Date = new Date(),
-): Promise<InsightsView> {
-  const since = period === null ? null : new Date(now.getTime() - period * 86_400_000);
+/** The repositories this user may review, one access check per repository. */
+async function reviewableRepositories(login: string, deps: DashboardDeps): Promise<Repository[]> {
   const visible: Repository[] = [];
   for (const repository of await listRepositories(deps.db)) {
     const github = await deps.githubFor(repository.installationId);
@@ -530,6 +527,65 @@ export async function getInsightsFor(
       visible.push(repository);
     }
   }
+  return visible;
+}
+
+function periodStart(period: InsightPeriod, now: Date): Date | null {
+  return period === null ? null : new Date(now.getTime() - period * 86_400_000);
+}
+
+const EXPORT_HEADER = [
+  "repository", "pull_request", "pull_request_title", "commit", "file", "line",
+  "severity", "category", "written_by", "decision", "rewritten", "rejection_reason",
+  "decided_by", "decided_at", "published_by", "published_at", "review_url",
+];
+
+/**
+ * Every decision on published reviews in the period, as CSV, for the
+ * repositories this user may review. For audits and for a team's own
+ * analysis. It holds no code and no finding text.
+ */
+export async function exportDecisionsFor(
+  login: string,
+  deps: DashboardDeps,
+  appUrl: string,
+  period: InsightPeriod = 90,
+  now: Date = new Date(),
+): Promise<string> {
+  const visible = await reviewableRepositories(login, deps);
+  const rows = await listDecisionsForExport(deps.db, visible.map((r) => r.id), periodStart(period, now));
+  return toCsv(
+    EXPORT_HEADER,
+    rows.map((row) => [
+      `${row.owner}/${row.repo}`,
+      row.pullNumber,
+      row.pullTitle,
+      row.headSha?.slice(0, 12) ?? null,
+      row.filePath,
+      row.startLine,
+      row.severity,
+      row.category,
+      row.source === "human" ? "reviewer" : "first pass",
+      row.status,
+      row.edited === null ? "no" : "yes",
+      row.rejectionReason,
+      row.decidedBy,
+      row.decidedAt?.toISOString() ?? null,
+      row.publishedBy,
+      row.publishedAt?.toISOString() ?? null,
+      `${appUrl}/dashboard/reviews/${row.reviewId}`,
+    ]),
+  );
+}
+
+export async function getInsightsFor(
+  login: string,
+  deps: DashboardDeps,
+  period: InsightPeriod = 90,
+  now: Date = new Date(),
+): Promise<InsightsView> {
+  const since = periodStart(period, now);
+  const visible = await reviewableRepositories(login, deps);
   const ids = visible.map((repository) => repository.id);
   const [rows, published] = await Promise.all([
     listPublishedFindings(deps.db, ids, since),

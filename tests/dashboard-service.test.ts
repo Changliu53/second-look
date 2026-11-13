@@ -13,6 +13,7 @@ import {
   addFindingFor,
   decideFindingFor,
   editFindingFor,
+  exportDecisionsFor,
   getInsightsFor,
   getDemoReview,
   getReviewFor,
@@ -178,6 +179,31 @@ describe("editFindingFor", () => {
     expect(valid.ok).toBe(true);
     const [after] = await findings();
     expect(after).toMatchObject({ editedExplanation: "Clear text", editedSuggestedFix: null, status: "confirmed" });
+  });
+});
+
+describe("exportDecisionsFor", () => {
+  it("exports published decisions only, for a user with access, with no finding text", async () => {
+    const [first, second] = await findings();
+    await decideFindingFor(first!.id, { status: "confirmed" }, "lee", deps);
+    await decideFindingFor(second!.id, { status: "rejected", rejectionReason: "=cmd|' /C calc'!A0" }, "lee", deps);
+
+    const before = await exportDecisionsFor("lee", deps, "https://sl.test");
+    await publishReviewFor(reviewId, null, "lee", deps);
+    const after = await exportDecisionsFor("lee", deps, "https://sl.test");
+    const outsider = await exportDecisionsFor("reader", deps, "https://sl.test");
+
+    expect(before.trim().split("\r\n")).toHaveLength(1);
+    const lines = after.trim().split("\r\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain('"decision"');
+    expect(after).toContain(`"https://sl.test/dashboard/reviews/${reviewId}"`);
+    // A reason that a spreadsheet would run as a formula is written as text.
+    expect(after).toContain(`"'=cmd|' /C calc'!A0"`);
+    for (const finding of await findings()) {
+      expect(after).not.toContain(finding.explanation);
+    }
+    expect(outsider.trim().split("\r\n")).toHaveLength(1);
   });
 });
 

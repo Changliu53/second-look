@@ -52,7 +52,7 @@ flowchart LR
 ## For a team
 
 - **Several reviewers.** The dashboard says who is going through each review ("kim is going through it, 4 min ago"), so two people do not take the same one, and filters by repository.
-- **An audit trail.** Every confirm, reject, undo, rewrite, added and removed finding is recorded with who and when, and listed under the review as its activity.
+- **An audit trail.** Every confirm, reject, undo, rewrite, added and removed finding is recorded with who and when, and listed under the review as its activity. The insights page downloads every decision in a period as CSV (no code, no finding text, and safe to open in a spreadsheet).
 - **Nothing to fix.** Rejecting every finding turns publishing into "Approve: no changes needed". The author gets a one-line review and the check passes.
 - **Large pull requests.** Over the size limit, the first pass reviews the riskiest files that fit (migrations, access checks, endpoints first; tests and docs last) and names the files it did not read.
 - **When a review fails.** "Run the review again" on its page, instead of closing and reopening the pull request.

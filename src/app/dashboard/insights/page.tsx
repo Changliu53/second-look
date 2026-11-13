@@ -111,7 +111,10 @@ function RuleSuggestions({ rules }: { rules: ReturnType<typeof suggestRules> }) 
           <p className="mt-1 text-sm leading-relaxed">
             Reviewers keep turning these down. Adding the lines below to{" "}
             <code className="font-mono text-xs">.second-look.md</code> on the main branch tells the
-            first pass to stop raising them.
+            first pass to stop raising them.{" "}
+            <a className={LINK} href="https://github.com/Changliu53/second-look/blob/main/docs/TEAM-RULES.md">
+              How to write rules
+            </a>
           </p>
         </div>
         <CopyButton text={text} label="Copy rules" />

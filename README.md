@@ -70,7 +70,7 @@ Problems that are common in AI-generated code and easy to miss when the code "ru
 - Missing error handling, secrets in code, SQL built by string concatenation.
 - Changes unrelated to the stated purpose of the pull request, and risky logic with no tests.
 
-A repository can add its own rules in `.second-look.md` (see [the one in this repository](.second-look.md)). The reviewer cites them in its findings.
+A repository can add its own rules in `.second-look.md` (see [the one in this repository](.second-look.md), and [starting points for common stacks](docs/TEAM-RULES.md)). The reviewer cites them in its findings.
 
 ## Safety and cost guards
 

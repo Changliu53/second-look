@@ -112,6 +112,8 @@ export const pullRequests = pgTable(
     title: text("title").notNull(),
     authorLogin: text("author_login").notNull(),
     headSha: text("head_sha").notNull(),
+    // The branch the PR targets. Needed to rebuild the diff of an older commit.
+    baseRef: text("base_ref"),
     // Set when the PR is closed or merged, cleared when it is reopened.
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })

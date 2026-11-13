@@ -107,9 +107,10 @@ function PublishForm({ detail }: { detail: ReviewDetail }) {
       <h2 className={SECTION_LABEL}>Publish review</h2>
       <p className="mt-2 text-sm leading-relaxed">
         Posts the summary and {counts.confirmed} confirmed finding
-        {counts.confirmed === 1 ? "" : "s"} to the pull request as one review. The{" "}
-        {counts.rejected} rejected finding{counts.rejected === 1 ? " is" : "s are"} not shown to
-        the author. The check will then{" "}
+        {counts.confirmed === 1 ? "" : "s"} to the pull request as one review.{" "}
+        {counts.rejected > 0 &&
+          `The ${counts.rejected} rejected finding${counts.rejected === 1 ? " is" : "s are"} not shown to the author. `}
+        The check will then{" "}
         {confirmedCritical > 0 ? (
           <strong className="text-red-700">require action ({confirmedCritical} critical)</strong>
         ) : (
@@ -244,7 +245,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  const { detail, diff } = loaded;
+  const { detail, diff, rounds } = loaded;
   // Only known codes are shown. Anything else in the URL is ignored.
   const errorCode = (await searchParams).error ?? "";
   const error = errorCode in ACTION_ERRORS ? ACTION_ERRORS[errorCode as ActionErrorCode] : null;
@@ -289,7 +290,13 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
 
         <Handoff detail={detail} />
 
-        <ReviewContent detail={detail} diff={diff} locked={locked} />
+        <ReviewContent
+          detail={detail}
+          diff={diff}
+          locked={locked}
+          rounds={rounds}
+          roundHref={(round) => `/dashboard/reviews/${round.reviewId}`}
+        />
 
         {!locked && <PublishForm detail={detail} />}
       </main>

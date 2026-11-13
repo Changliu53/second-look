@@ -391,6 +391,22 @@ describe("getEarlierDecisions over several rounds", () => {
   });
 });
 
+describe("recently published", () => {
+  it("lists a pull request once, with its latest round", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    for (const sha of ["sha-1", "sha-2"]) {
+      const round = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: sha });
+      await completeReview(db, round.review.id, completedResult(0));
+      await claimReviewForPublish(db, round.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+    }
+
+    const published = await listPublishedReviews(db, 10);
+
+    expect(published).toHaveLength(1);
+    expect(published[0]?.review.headSha).toBe("sha-2");
+  });
+});
+
 describe("paste reviews", () => {
   it("logs token usage without a pull request and counts recent ones", async () => {
     await recordPasteReview(db, completedResult(1));

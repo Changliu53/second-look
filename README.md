@@ -8,10 +8,11 @@ In small teams, people who are not engineers now ship features written by AI too
 
 Everything below works without an account.
 
-- **Go through a review yourself:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then open the second tab to see the review and the merge check the author would get. Or paste your own code.
-- **A real pull request after review, read-only:** https://second-look-review.vercel.app/demo
-- **What the author sees on GitHub:** the published review and check run on [pull request #2](https://github.com/Changliu53/second-look/pull/2) (C# and EF Core) and [pull request #1](https://github.com/Changliu53/second-look/pull/1) (TypeScript). Both contain planted problems.
-- **The tool reviewing its own code:** [pull request #3](https://github.com/Changliu53/second-look/pull/3), where it found a real flaw in its own eval.
+- **Playground:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then open the second tab to choose who fixes it and see what gets posted. Or paste your own code.
+- **A real pull request, three rounds, read-only:** https://second-look-review.vercel.app/example. Sent back to the author, partly fixed, taken over by the reviewer, passed. The same pull request on GitHub: [#2](https://github.com/Changliu53/second-look/pull/2).
+- **The tool reviewing its own code:** pull requests [#3](https://github.com/Changliu53/second-look/pull/3) to [#6](https://github.com/Changliu53/second-look/pull/6). It found a flaw in its own eval, a setup script that failed on the documented path, and a crash that the build and the tests had both missed.
+
+To run the whole flow yourself on a sample repository, with real pull requests, see [scripts/walkthrough](scripts/walkthrough/README.md).
 
 ## How it works
 
@@ -20,20 +21,30 @@ flowchart LR
     PR[Pull request] -->|webhook| Review[AI first pass]
     Review -->|pending findings| Dash[Reviewer dashboard]
     Dash -->|confirm / reject / edit| Publish[Publish]
-    Publish -->|confirmed findings only| PR
-    Publish -->|check run result| PR
+    Publish -->|send back with a fix prompt| PR
+    Publish -->|or: reviewer takes over| PR
+    PR -->|new commit| Review
 ```
 
-1. A GitHub App receives `pull_request` events. It fetches the diff, the changed files, and the team's `.second-look.md` rules from the main branch.
-2. Claude reviews the change and returns findings in a fixed schema: file, lines, severity, category, explanation, suggested fix, confidence. It also writes a plain-English summary for an author who does not read code.
-3. Findings are stored as `pending`. Nothing is posted to the pull request yet.
-4. An engineer signs in to the dashboard, sees the findings inline in the diff, and confirms, rejects, or rewrites each one.
-5. "Publish review" posts the confirmed findings as one GitHub review with inline comments, with the summary on top.
-6. A check run on the PR stays in progress until the review is published. It then fails with "action required" if any confirmed finding is critical, and passes otherwise, so a team can require it before merging.
+1. **A pull request is opened.** A GitHub App receives the event and fetches the diff, the changed files, and the team's `.second-look.md` rules from the main branch.
+2. **The AI does the first pass.** The reviewer's dashboard shows it live: fetching the diff, reading files, the model reviewing. Findings come back in a fixed schema and are stored as pending. Nothing is posted to the pull request.
 
-The reviewer's page is built for doing this many times a day: an outline of every finding, worst first; `j` `k` `n` to move, `c` `r` `e` to confirm, reject, and edit; suggested rejection reasons; and a bar that stays in view with how many are left.
+   ![A running review: three steps with a timer](docs/live-progress.jpg)
 
-![The reviewer's page on a C# pull request: two access-control findings inline with Confirm, Reject and Edit](docs/dashboard.jpg)
+3. **An engineer decides.** Findings sit inline in the diff. Confirm, reject with a reason, or rewrite each one. `j` `k` `n` move between findings and `c` `r` `e` act on them.
+
+   ![The reviewer's page on a C# pull request: two access-control findings inline with Confirm, Reject and Edit](docs/dashboard.jpg)
+
+4. **The engineer publishes and chooses who fixes it.**
+   - *Send back to the author.* One GitHub review with the confirmed findings, a plain-English summary, and a prompt the author can paste into their AI tool. The prompt lists each finding with its file and lines and tells the tool to change nothing else.
+   - *I will fix it myself.* The author is told they do not need to do anything. The reviewer gets a checkout command and a prompt written for an engineer's coding agent.
+
+   ![The publish form: send back to the author, or fix it myself](docs/publish-modes.jpg)
+
+5. **A check run blocks the merge** while a confirmed finding is critical, and passes otherwise. It stays in progress until a human publishes, so a pull request cannot go green on the AI's word alone.
+6. **A fix is pushed and the pull request is reviewed again.** The new review knows what the reviewer decided last time. Findings they rejected are not raised again, and each finding that was sent gets a verdict: fixed, still there, or cannot tell.
+
+   ![Since the last review: 4 of 7 sent findings fixed, with a note on each](docs/follow-up.jpg)
 
 ## What it looks for
 
@@ -143,10 +154,12 @@ Design choices and the alternatives that were rejected are in [DECISIONS.md](DEC
 ## Known limits
 
 - No retry queue. If a review crashes or times out, close and reopen the pull request to run it again.
-- One model call per pull request. Large PRs are refused, not split into chunks.
+- One model call per pull request. Pull requests over 120,000 characters of diff are refused, not split into chunks.
 - The model sees the diff and the changed files, not the rest of the repository. It can miss bugs that depend on other files, and it can be wrong about whether a library function exists.
 - The prompt-injection defence lowers the risk and does not remove it. A human confirms every finding for that reason.
 - A reviewer cannot add their own findings in the dashboard yet.
+- The follow-up verdicts (fixed, still there) are the model's reading of the new commit. They save the reviewer time; they do not replace looking.
+- The fix prompt is built from findings a human confirmed, but its text was first written by a model about code that is not trusted. It tells the receiving tool to treat findings as descriptions, which lowers the risk and does not remove it.
 - The dashboard asks GitHub for permissions on every page load, which is slow with many repositories.
 - Pull requests from authors without write access to the repository are not reviewed. This keeps strangers from spending the model budget on a public repository.
 - There is no button to re-run a failed review. Close and reopen the pull request.

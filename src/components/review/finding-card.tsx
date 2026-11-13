@@ -14,6 +14,10 @@ import {
   FindingText,
 } from "./finding-view";
 
+// An open Reject or Edit panel moves to its own full-width row under the
+// buttons, instead of pushing the other buttons sideways.
+const PANEL = "open:order-last open:basis-full";
+
 function Ids({ finding }: { finding: Finding }) {
   return (
     <>
@@ -50,9 +54,9 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
           )}
 
           {finding.status !== "rejected" && (
-            <details data-action="reject">
+            <details data-action="reject" className={PANEL}>
               <summary className={`${BUTTON} cursor-pointer list-none`}>Reject</summary>
-              <form action={rejectFindingAction} className="mt-2 w-80 max-w-full">
+              <form action={rejectFindingAction} className="mt-2 max-w-xl">
                 <Ids finding={finding} />
                 <label className="text-xs text-ink-soft">
                   Reason (optional, the author never sees it)
@@ -68,9 +72,9 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
             </details>
           )}
 
-          <details data-action="edit">
+          <details data-action="edit" className={PANEL}>
             <summary className={`${BUTTON} cursor-pointer list-none`}>Edit</summary>
-            <form action={editFindingAction} className="mt-2 w-[28rem] max-w-full">
+            <form action={editFindingAction} className="mt-2 max-w-2xl">
               <Ids finding={finding} />
               <label className="text-xs text-ink-soft">
                 Explanation

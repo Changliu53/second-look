@@ -16,6 +16,9 @@ const STATUS: Record<FollowUpEntry["status"], { label: string; className: string
  */
 export function FollowUpPanel({ entries }: { entries: FollowUpEntry[] }) {
   const fixed = entries.filter((entry) => entry.status === "fixed").length;
+  // What still needs attention comes first.
+  const order = { still_present: 0, unclear: 1, fixed: 2 } as const;
+  const sorted = [...entries].sort((a, b) => order[a.status] - order[b.status]);
 
   return (
     <section className="mt-4 rounded-lg border border-edge bg-surface-raised p-4">
@@ -27,7 +30,7 @@ export function FollowUpPanel({ entries }: { entries: FollowUpEntry[] }) {
         </span>
       </div>
       <ul className="mt-3 space-y-2.5">
-        {entries.map((entry) => (
+        {sorted.map((entry) => (
           <li key={entry.previousFindingId} className="flex gap-3 text-sm">
             <span className={`w-24 shrink-0 font-semibold ${STATUS[entry.status].className}`}>
               {STATUS[entry.status].mark} {STATUS[entry.status].label}
@@ -36,7 +39,8 @@ export function FollowUpPanel({ entries }: { entries: FollowUpEntry[] }) {
               <span className="mr-2 align-middle">
                 <SeverityBadge severity={entry.severity} />
               </span>
-              <span className={entry.status === "fixed" ? "text-ink-soft" : ""}>
+              {/* A fixed finding needs one line; one that is still there is shown in full. */}
+              <span className={entry.status === "fixed" ? "line-clamp-1 text-ink-soft" : ""}>
                 <InlineText text={entry.explanation} />
               </span>
               <span className="mt-0.5 block text-xs text-ink-soft">

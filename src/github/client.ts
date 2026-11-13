@@ -38,6 +38,11 @@ export type ReviewPayload = {
 export interface GitHubClient {
   /** Throws DiffTooLargeError when GitHub refuses to render the diff. */
   getPullRequestDiff(repo: RepoRef, pullNumber: number): Promise<string>;
+  /**
+   * The diff a pull request had at an earlier commit: everything on `headSha`
+   * since it branched from `baseRef`.
+   */
+  getDiffAtCommit(repo: RepoRef, baseRef: string, headSha: string): Promise<string>;
   /** Returns null when the file does not exist at that ref. */
   getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null>;
   createCheckRun(
@@ -100,6 +105,21 @@ class OctokitGitHubClient implements GitHubClient {
       }
       throw error;
     }
+  }
+
+  async getDiffAtCommit(repo: RepoRef, baseRef: string, headSha: string): Promise<string> {
+    const response = await this.octokit.request(
+      "GET /repos/{owner}/{repo}/compare/{basehead}",
+      {
+        owner: repo.owner,
+        repo: repo.name,
+        // Three dots: compare against the point where the branch split off,
+        // which is what a pull request's diff shows.
+        basehead: `${baseRef}...${headSha}`,
+        mediaType: { format: "diff" },
+      },
+    );
+    return response.data as unknown as string;
   }
 
   async getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null> {

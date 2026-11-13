@@ -238,6 +238,7 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
     title: event.pull_request.title,
     authorLogin,
     headSha,
+    baseRef: event.pull_request.base.ref,
   });
 
   const { review, shouldRun } = await startGithubReview(deps.db, {

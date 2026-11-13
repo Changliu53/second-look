@@ -179,3 +179,29 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** The first limit was a guess. A feature pull request in this repository with 30 files and its tests came to 73,000 characters, and Second Look answered "too large, split it" to its own change. A limit that rejects ordinary pull requests trains people to ignore the message.
 **Rejected:** Removing the limit. One model call has to finish inside the function's time budget, and cost should have a ceiling.
 **Still missing:** Reviewing a large pull request in parts. Above the limit the answer is still "split it".
+
+## 34. Publishing asks who makes the fixes
+**What:** The publish form has two choices. *Send back to the author* posts the findings with a fix prompt. *I will fix it myself* tells the author to do nothing and gives the reviewer a checkout command and a prompt for their own agent. The choice is stored on the review.
+**Why:** These are the two things a reviewer actually does after reading a pull request from a non-engineer. Sometimes explaining the fix costs more than making it. Without the second mode the reviewer either posted "action required" at someone who could not act, or fixed it silently and left the author wondering.
+**Rejected:** A free-text note for the reviewer to say so. The check run and the dashboard could not then tell the two cases apart.
+
+## 35. The fix prompt is a template, not a model call
+**What:** `buildFixPrompt` assembles the prompt from the confirmed findings with string code: file, lines, problem, suggested fix, and a fixed set of rules.
+**Why:** It is predictable, free, and the reviewer can read exactly what will be sent before publishing. A second model call would add cost, delay, and one more output to check.
+**Risk:** The finding text was written by a model about untrusted code and is now pasted into another AI tool. A human confirmed each finding first, the prompt tells the tool to treat findings as descriptions of problems, and the fence around it on GitHub cannot be closed from inside. That lowers the risk; it does not remove it.
+
+## 36. A new review inherits the reviewer's earlier decisions
+**What:** When a pull request is reviewed again, the prompt includes the findings the reviewer confirmed in the latest published review and the findings they rejected in any earlier one. The model returns a verdict for each confirmed finding and is told not to raise rejected ones again.
+**Why:** Without this, the second review could repeat a finding the reviewer had already turned down, and the reviewer had to compare two commits by hand to see what was fixed. The brief listed "rejection reasons fed back into the prompt" as later work; this is that, limited to one pull request.
+**Rejected:** Matching old and new findings in code by file and line. Lines move between commits, and "is this the same problem" is a judgement the model is better placed to make.
+**Limit:** The verdicts are the model's reading. A finding the model skips is shown as "cannot tell", never as fixed.
+
+## 37. The diff of an earlier round is rebuilt from the commit
+**What:** A review of the newest commit shows the pull request's diff. A review of an older commit shows `base...thatCommit` from GitHub's compare API. The base branch is stored on the pull request for this.
+**Why:** GitHub's pull request diff is always the current one. Shown next to an older review, it put findings beside code they were not written about.
+**Rejected:** Storing every diff. Decision 11 (code under review is not stored) still holds.
+
+## 38. The diff is cached per commit, in memory
+**What:** `getReviewDiff` keeps diffs for five minutes, keyed by repository, pull request, and commit.
+**Why:** The review page re-renders after every Confirm or Reject and was asking GitHub for the same diff each time, so every click waited on a network round trip.
+**Rejected:** A shared cache such as Redis. A cold serverless instance costs one extra request, which does not justify a new service.

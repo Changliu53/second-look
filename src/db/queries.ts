@@ -12,12 +12,14 @@ import {
 import type { ReviewResult } from "@/review/engine";
 import type { Database } from "./client";
 import {
+  findingEvents,
   findings,
   pullRequests,
   rateLimits,
   repositories,
   reviews,
   type Finding,
+  type FindingEvent,
   type FollowUpEntry,
   type PullRequest,
   type Repository,
@@ -629,6 +631,33 @@ export async function getFinding(
   return rows[0] ?? null;
 }
 
+type FindingEventInput = {
+  reviewId: number;
+  findingId: number;
+  actor: string;
+  action: FindingEvent["action"];
+  detail?: string | null;
+};
+
+/**
+ * Appends to a finding's history. Written after the change it records, as
+ * a separate statement: the Neon HTTP driver has no transactions. If this
+ * write fails the change stands without its record, which is the safer way
+ * round for a reviewer in the middle of a review.
+ */
+async function recordFindingEvent(db: Database, event: FindingEventInput): Promise<void> {
+  await db.insert(findingEvents).values({ ...event, detail: event.detail ?? null });
+}
+
+/** A review's finding history, oldest first. */
+export async function listFindingEvents(db: Database, reviewId: number): Promise<FindingEvent[]> {
+  return db
+    .select()
+    .from(findingEvents)
+    .where(eq(findingEvents.reviewId, reviewId))
+    .orderBy(findingEvents.createdAt, findingEvents.id);
+}
+
 export type FindingDecision =
   | { status: "confirmed" }
   | { status: "rejected"; rejectionReason: string | null }
@@ -641,17 +670,28 @@ export async function decideFinding(
   decidedBy: string,
 ): Promise<void> {
   const isPending = decision.status === "pending";
-  await db
+  const rejectionReason = decision.status === "rejected" ? decision.rejectionReason : null;
+  const updated = await db
     .update(findings)
     .set({
       status: decision.status,
-      rejectionReason:
-        decision.status === "rejected" ? decision.rejectionReason : null,
+      rejectionReason,
       // Moving back to pending clears who decided: nobody has, any more.
       decidedBy: isPending ? null : decidedBy,
       decidedAt: isPending ? null : new Date(),
     })
-    .where(eq(findings.id, findingId));
+    .where(eq(findings.id, findingId))
+    .returning({ reviewId: findings.reviewId });
+  const row = updated[0];
+  if (row) {
+    await recordFindingEvent(db, {
+      reviewId: row.reviewId,
+      findingId,
+      actor: decidedBy,
+      action: isPending ? "reset" : decision.status,
+      detail: rejectionReason,
+    });
+  }
 }
 
 /**
@@ -665,7 +705,7 @@ export async function editFinding(
   edit: { explanation: string; suggestedFix: string | null },
   decidedBy: string,
 ): Promise<void> {
-  await db
+  const updated = await db
     .update(findings)
     .set({
       editedExplanation: edit.explanation,
@@ -675,7 +715,12 @@ export async function editFinding(
       decidedBy,
       decidedAt: new Date(),
     })
-    .where(eq(findings.id, findingId));
+    .where(eq(findings.id, findingId))
+    .returning({ reviewId: findings.reviewId });
+  const row = updated[0];
+  if (row) {
+    await recordFindingEvent(db, { reviewId: row.reviewId, findingId, actor: decidedBy, action: "edited" });
+  }
 }
 
 export type HumanFindingInput = {
@@ -712,7 +757,9 @@ export async function addHumanFinding(
       decidedAt: new Date(),
     })
     .returning();
-  return firstRow(rows, "human finding insert");
+  const added = firstRow(rows, "human finding insert");
+  await recordFindingEvent(db, { reviewId, findingId: added.id, actor: addedBy, action: "added" });
+  return added;
 }
 
 /** Rewrites a finding the reviewer added. There is no AI original to keep. */
@@ -720,21 +767,36 @@ export async function updateHumanFinding(
   db: Database,
   findingId: number,
   edit: { explanation: string; suggestedFix: string | null },
+  editedBy: string,
 ): Promise<void> {
-  await db
+  const updated = await db
     .update(findings)
     .set(edit)
-    .where(and(eq(findings.id, findingId), eq(findings.source, "human")));
+    .where(and(eq(findings.id, findingId), eq(findings.source, "human")))
+    .returning({ reviewId: findings.reviewId });
+  const row = updated[0];
+  if (row) {
+    await recordFindingEvent(db, { reviewId: row.reviewId, findingId, actor: editedBy, action: "edited" });
+  }
 }
 
 /**
  * Deletes a finding the reviewer added. Only human findings can be deleted:
  * an AI finding is rejected instead, so the decision stays on record.
  */
-export async function removeHumanFinding(db: Database, findingId: number): Promise<void> {
-  await db
+export async function removeHumanFinding(
+  db: Database,
+  findingId: number,
+  removedBy: string,
+): Promise<void> {
+  const deleted = await db
     .delete(findings)
-    .where(and(eq(findings.id, findingId), eq(findings.source, "human")));
+    .where(and(eq(findings.id, findingId), eq(findings.source, "human")))
+    .returning({ reviewId: findings.reviewId });
+  const row = deleted[0];
+  if (row) {
+    await recordFindingEvent(db, { reviewId: row.reviewId, findingId, actor: removedBy, action: "removed" });
+  }
 }
 
 /**

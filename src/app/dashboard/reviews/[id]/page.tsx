@@ -8,6 +8,7 @@ import { FindingKeys } from "@/components/review/finding-keys";
 import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { ReviewContent } from "@/components/review/review-content";
 import { parseComposeTarget } from "@/dashboard/compose-target";
+import { ActivityLog } from "@/components/review/activity-log";
 import { ReviewProgress } from "@/components/review/review-progress";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
@@ -306,7 +307,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  const { detail, diff, rounds } = loaded;
+  const { detail, diff, rounds, history } = loaded;
   // Only known codes are shown. Anything else in the URL is ignored.
   const query = await searchParams;
   const errorCode = query.error ?? "";
@@ -380,6 +381,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
         />
 
         {!locked && <PublishForm detail={detail} />}
+        <ActivityLog events={history} findings={detail.findings} />
       </main>
     </>
   );

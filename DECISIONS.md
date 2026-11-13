@@ -291,3 +291,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Cost:** Someone removed from a repository can keep using its reviews for up to a minute, and someone just added waits up to a minute. Both are acceptable for a review tool; neither would be for a payment system.
 **Rejected:** A shared cache such as Redis, so that every instance agrees. A cold instance asking GitHub once more is cheaper than a new service.
 
+## 55. Every change to a finding is recorded
+**What:** A `finding_events` table gets a row for every confirm, reject (with its reason), undo, rewrite, added finding, and removed finding, with who did it and when. The review page lists them under "Activity on this review".
+**Why:** The finding row holds only where a finding ended up. With several reviewers on one repository, "who rejected this, and had someone confirmed it first?" had no answer, and a removed finding left no trace at all.
+**Details:** `finding_id` is deliberately not a foreign key, so the record of a removed finding survives the finding. The event is written after the change, as a second statement, because the Neon HTTP driver has no transactions; if that write fails the change stands without its record, which is better than a reviewer's click failing. The table holds no code and no finding text, only who, what, when, and a rejection reason.
+**Migration:** additive (one enum, one table). Existing decisions have no history; the activity list starts from the day this shipped.
+

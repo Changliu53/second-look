@@ -50,6 +50,13 @@
       "when": 1794536019600,
       "tag": "0006_add_review_base_sha",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794551355535,
+      "tag": "0007_add_finding_events",
+      "breakpoints": true
     }
   ]
 }

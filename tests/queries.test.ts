@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
 import {
+  addHumanFinding,
   completeReview,
   countPasteReviewsSince,
   decideFinding,
@@ -9,9 +10,12 @@ import {
   failReview,
   getEarlierDecisions,
   getReviewDetail,
+  listFindingEvents,
   listOpenReviews,
   listPublishedReviews,
   markPullRequestClosed,
+  removeHumanFinding,
+  updateHumanFinding,
   claimReviewForPublish,
   releasePublishClaim,
   recordPasteReview,
@@ -388,6 +392,50 @@ describe("getEarlierDecisions over several rounds", () => {
 
     const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
     expect(earlier?.rejected).toHaveLength(1);
+  });
+});
+
+describe("finding history", () => {
+  it("records every change in order, and keeps the record of a removed finding", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(1));
+    const [ai] = (await getReviewDetail(db, review.id))!.findings;
+
+    await decideFinding(db, ai!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, ai!.id, { status: "rejected", rejectionReason: "By design" }, "kim");
+    await decideFinding(db, ai!.id, { status: "pending" }, "kim");
+    await editFinding(db, ai!.id, { explanation: "Mine", suggestedFix: null }, "lee");
+    const mine = await addHumanFinding(db, review.id, {
+      filePath: "src/a.ts", startLine: 1, endLine: 1, severity: "nit", category: "bug", explanation: "x", suggestedFix: null,
+    }, "lee");
+    await updateHumanFinding(db, mine.id, { explanation: "y", suggestedFix: null }, "lee");
+    await removeHumanFinding(db, mine.id, "lee");
+
+    const history = await listFindingEvents(db, review.id);
+
+    expect(history.map((e) => [e.actor, e.action, e.detail])).toEqual([
+      ["lee", "confirmed", null],
+      ["kim", "rejected", "By design"],
+      ["kim", "reset", null],
+      ["lee", "edited", null],
+      ["lee", "added", null],
+      ["lee", "edited", null],
+      ["lee", "removed", null],
+    ]);
+    // The finding is gone; its history is not.
+    expect(history.at(-1)?.findingId).toBe(mine.id);
+    expect((await getReviewDetail(db, review.id))!.findings).toHaveLength(1);
+  });
+
+  it("records nothing when the finding does not exist", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+
+    await decideFinding(db, 99999, { status: "confirmed" }, "lee");
+    await removeHumanFinding(db, 99999, "lee");
+
+    expect(await listFindingEvents(db, review.id)).toEqual([]);
   });
 });
 

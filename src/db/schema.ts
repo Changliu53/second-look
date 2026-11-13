@@ -208,6 +208,45 @@ export const findings = pgTable(
   (table) => [index("findings_review_idx").on(table.reviewId)],
 );
 
+/** What a reviewer did to a finding. Kept as an append-only record. */
+export const findingEventActionEnum = pgEnum("finding_event_action", [
+  "confirmed",
+  "rejected",
+  // Undo: back to pending.
+  "reset",
+  "edited",
+  "added",
+  "removed",
+]);
+
+/**
+ * Every change a reviewer makes to a finding, in order. The finding row
+ * holds only the latest state; this holds how it got there, so a team can
+ * answer "who rejected this, and was it confirmed before?".
+ *
+ * `finding_id` is not a foreign key on purpose: a finding a reviewer wrote
+ * can be deleted, and the record that it existed and was removed must stay.
+ * The review is a foreign key, so deleting a review removes its history.
+ */
+export const findingEvents = pgTable(
+  "finding_events",
+  {
+    id: serial("id").primaryKey(),
+    reviewId: integer("review_id")
+      .notNull()
+      .references(() => reviews.id, { onDelete: "cascade" }),
+    findingId: integer("finding_id").notNull(),
+    actor: text("actor").notNull(),
+    action: findingEventActionEnum("action").notNull(),
+    // The rejection reason, when there is one. Never code or finding text.
+    detail: text("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("finding_events_review_idx").on(table.reviewId, table.createdAt)],
+);
+
 export const rateLimits = pgTable(
   "rate_limits",
   {
@@ -227,3 +266,4 @@ export type PullRequest = typeof pullRequests.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type Finding = typeof findings.$inferSelect;
 export type NewFinding = typeof findings.$inferInsert;
+export type FindingEvent = typeof findingEvents.$inferSelect;

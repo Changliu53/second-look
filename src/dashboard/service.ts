@@ -10,6 +10,7 @@ import {
   listReviewRounds,
   getReviewDetail,
   isStaleRunning,
+  listFindingEvents,
   listOpenReviews,
   listPublishedFindings,
   listPublishedFollowUps,
@@ -24,7 +25,7 @@ import {
   type ReviewListItem,
   type ReviewRound,
 } from "@/db/queries";
-import type { Repository, Review } from "@/db/schema";
+import type { FindingEvent, Repository, Review } from "@/db/schema";
 import type { PullRequestEvent } from "@/github/webhook-payload";
 import { checkRunFor } from "@/github/check-run";
 import type { GitHubClient, RepoRef } from "@/github/client";
@@ -158,13 +159,21 @@ export async function getReviewFor(
   reviewId: number,
   login: string,
   deps: DashboardDeps,
-): Promise<{ detail: ReviewDetail; diff: string | null; rounds: ReviewRound[] } | null> {
+): Promise<{
+  detail: ReviewDetail;
+  diff: string | null;
+  rounds: ReviewRound[];
+  history: FindingEvent[];
+} | null> {
   const loaded = await loadReviewFor(reviewId, login, deps);
   if (!loaded) {
     return null;
   }
   const { detail } = loaded;
-  const rounds = await listReviewRounds(deps.db, detail.pullRequest.id);
+  const [rounds, history] = await Promise.all([
+    listReviewRounds(deps.db, detail.pullRequest.id),
+    listFindingEvents(deps.db, reviewId),
+  ]);
 
   // The diff is fetched from GitHub instead of being stored. If GitHub is
   // unreachable the findings are still shown, without the diff.
@@ -174,7 +183,7 @@ export async function getReviewFor(
   } catch (error) {
     logEvent("dashboard_diff_fetch_failed", { reviewId, error: safeErrorCode(error) });
   }
-  return { detail, diff, rounds };
+  return { detail, diff, rounds, history };
 }
 
 /**
@@ -280,7 +289,7 @@ export async function editFindingFor(
   }
   if (loaded.finding.source === "human") {
     // The reviewer is rewriting their own text; there is no AI original.
-    await updateHumanFinding(deps.db, findingId, edit.data);
+    await updateHumanFinding(deps.db, findingId, edit.data, login);
   } else {
     await editFinding(deps.db, findingId, edit.data, login);
   }
@@ -380,7 +389,7 @@ export async function removeFindingFor(
   if (problem) {
     return fail(problem);
   }
-  await removeHumanFinding(deps.db, findingId);
+  await removeHumanFinding(deps.db, findingId, login);
   return { ok: true };
 }
 

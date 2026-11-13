@@ -113,6 +113,12 @@ const DECIDED_MARK: Record<"confirmed" | "rejected" | "human", { mark: string; l
   human: { mark: "✎", label: "Yours", className: "text-green-700" },
 };
 
+/** Changes whenever the reviewer decides, re-decides, or rewrites a finding. */
+function decisionKey(finding: Finding): string {
+  const decidedAt = finding.decidedAt ? new Date(finding.decidedAt).getTime() : 0;
+  return `${finding.status}:${decidedAt}:${finding.editedExplanation?.length ?? 0}:${finding.rejectionReason ?? ""}`;
+}
+
 /**
  * The whole card for a finding: header, text, and whatever controls the
  * caller passes as children.
@@ -154,7 +160,11 @@ export function FindingShell({
   const decided = DECIDED_MARK[finding.source === "human" ? "human" : finding.status];
   return (
     <FindingFrame finding={finding}>
-      <details data-collapsible className="peer group/fold">
+      {/* The key changes with every decision, so a card the reviewer opened
+          to change their mind folds again once they have, the same as after
+          a first decision. Without it the browser keeps the old <details>
+          open, and a reject made from an open card showed no reasons. */}
+      <details key={decisionKey(finding)} data-collapsible className="peer group/fold">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm">
           <span className={`shrink-0 text-xs font-semibold sm:w-24 ${decided.className}`}>
             {decided.mark} {decided.label}

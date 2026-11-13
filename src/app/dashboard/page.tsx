@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSignedInLogin } from "@/auth";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { stageLabel } from "@/components/review/stage-labels";
 import { SiteHeader } from "@/components/site-header";
 import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
 import { listPublishedReviewsFor, listReviewsFor } from "@/dashboard/service";
@@ -44,12 +45,12 @@ function SignedOut() {
         </form>
         <p className="mt-6 text-sm text-ink-soft">
           Just looking? Open the{" "}
-          <Link className={LINK} href="/demo">
-            read-only example of a reviewed pull request
+          <Link className={LINK} href="/example">
+            example of a reviewed pull request
           </Link>{" "}
           or{" "}
           <Link className={LINK} href="/">
-            try it on your own code
+            try the playground
           </Link>
           .
         </p>
@@ -81,7 +82,11 @@ function OpenRow({ item }: { item: ReviewListItem }) {
         </span>
         <span className="flex items-center gap-1.5 text-xs text-ink-soft">
           <span aria-hidden className={`size-2 rounded-full ${stale ? "bg-red-600" : STATUS_DOT[review.status]}`} />
-          {stale ? "Review did not finish" : STATUS_LABELS[review.status]}
+          {stale
+            ? "Review did not finish"
+            : review.status === "running"
+              ? `AI: ${stageLabel(review.stage).toLowerCase()}`
+              : STATUS_LABELS[review.status]}
         </span>
         {total > 0 && (
           <span className="w-28 text-right text-xs text-ink-soft">
@@ -127,14 +132,16 @@ export default async function DashboardPage() {
           <button className={LINK}>Sign out</button>
         </form>
       </SiteHeader>
-      {anyRunning && <AutoRefresh seconds={5} />}
+      {/* Keep the list fresh: quickly while a review runs, slowly otherwise,
+          so a pull request opened a moment ago appears without a reload. */}
+      <AutoRefresh seconds={anyRunning ? 3 : 10} />
 
       <main className="mx-auto max-w-4xl px-5 py-8">
         <h1 className="text-2xl font-semibold tracking-tight">Waiting for your decision</h1>
         {open.length === 0 ? (
           <p className="mt-4 rounded-lg border border-dashed border-edge p-6 text-sm text-ink-soft">
             Nothing to review. A pull request opened on a repository where Second Look is
-            installed shows up here about half a minute later.
+            installed appears here within seconds. This list updates by itself.
           </p>
         ) : (
           <ul className="mt-4 space-y-2">

@@ -21,6 +21,7 @@ import {
   type PullRequest,
   type Repository,
   type Review,
+  type ReviewStage,
 } from "./schema";
 
 /**
@@ -176,7 +177,7 @@ export async function startGithubReview(
   await db.delete(findings).where(eq(findings.reviewId, existing.id));
   const reset = await db
     .update(reviews)
-    .set({ status: "running", errorMessage: null, createdAt: now })
+    .set({ status: "running", stage: null, errorMessage: null, createdAt: now })
     .where(eq(reviews.id, existing.id))
     .returning();
   await supersedeOlderReviews(db, input.pullRequestId, existing.id);
@@ -203,6 +204,21 @@ async function supersedeOlderReviews(
         ne(reviews.status, "superseded"),
       ),
     );
+}
+
+/**
+ * Records what a running review is doing, for the live view in the dashboard.
+ * A no-op once the review has finished or been superseded.
+ */
+export async function setReviewStage(
+  db: Database,
+  reviewId: number,
+  stage: ReviewStage,
+): Promise<void> {
+  await db
+    .update(reviews)
+    .set({ stage })
+    .where(and(eq(reviews.id, reviewId), eq(reviews.status, "running")));
 }
 
 export async function setCheckRunId(

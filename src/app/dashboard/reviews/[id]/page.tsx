@@ -4,6 +4,7 @@ import { getSignedInLogin } from "@/auth";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FindingKeys } from "@/components/review/finding-keys";
 import { ReviewContent } from "@/components/review/review-content";
+import { ReviewProgress } from "@/components/review/review-progress";
 import { SiteHeader } from "@/components/site-header";
 import { BUTTON_PRIMARY, INPUT, LINK, SECTION_LABEL } from "@/components/ui";
 import { ACTION_ERRORS, getReviewFor, type ActionErrorCode } from "@/dashboard/service";
@@ -30,9 +31,6 @@ function lockedReason(detail: ReviewDetail): string | null {
   }
   if (isStaleRunning(review)) {
     return "The AI review did not finish. It may have timed out. Close and reopen the pull request to run it again.";
-  }
-  if (review.status === "running") {
-    return "The AI review is running. This page updates by itself when it is done.";
   }
   if (review.status === "failed") {
     return "The AI review failed. Close and reopen the pull request to run it again.";
@@ -149,16 +147,16 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
   // Only known codes are shown. Anything else in the URL is ignored.
   const errorCode = (await searchParams).error ?? "";
   const error = errorCode in ACTION_ERRORS ? ACTION_ERRORS[errorCode as ActionErrorCode] : null;
-  const reason = lockedReason(detail);
-  const locked = reason !== null;
   const isRunning = detail.review.status === "running" && !isStaleRunning(detail.review);
+  const reason = lockedReason(detail);
+  const locked = reason !== null || isRunning;
 
   return (
     <>
       <SiteHeader current="/dashboard">
         <span className="text-ink-soft">{login}</span>
       </SiteHeader>
-      {isRunning && <AutoRefresh seconds={5} />}
+      {isRunning && <AutoRefresh seconds={3} />}
       {detail.findings.length > 0 && <ProgressBar detail={detail} locked={locked} />}
 
       <main className="mx-auto max-w-5xl px-5 py-8">
@@ -179,6 +177,13 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
               </>
             )}
           </p>
+        )}
+
+        {isRunning && (
+          <ReviewProgress
+            stage={detail.review.stage}
+            startedAt={detail.review.createdAt.toISOString()}
+          />
         )}
 
         <ReviewContent detail={detail} diff={diff} locked={locked} />

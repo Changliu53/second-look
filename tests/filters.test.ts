@@ -9,6 +9,7 @@ describe("getSkipReason", () => {
     ["dist/index.js", "generated"],
     ["packages/ui/node_modules/x/index.js", "generated"],
     ["build/app.js", "generated"],
+    ["drizzle/meta/0003_snapshot.json", "generated"],
     ["public/app.min.js", "generated"],
     ["src/__snapshots__/a.test.ts.snap", "generated"],
     ["public/logo.PNG", "binary"],
@@ -23,6 +24,7 @@ describe("getSkipReason", () => {
     "src/build/plan.ts",
     "docs/distribution.md",
     "src/lockfile.ts",
+    "drizzle/0003_add_review_stage.sql",
   ])("reviews %s", (path) => {
     expect(getSkipReason(path, false)).toBeNull();
   });

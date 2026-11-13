@@ -181,6 +181,28 @@ describe("reviewPullRequest", () => {
     expect(await listOpenReviews(db)).toEqual([]);
   });
 
+  it("records each stage as it starts, so the dashboard can show progress", async () => {
+    const seen: Array<string | null> = [];
+    const stageNow = async () => (await onlyReview()).review.stage;
+    const originalDiff = github.getPullRequestDiff.bind(github);
+    github.getPullRequestDiff = async () => {
+      seen.push(await stageNow());
+      return originalDiff();
+    };
+    const model: ReviewModel = {
+      name: "watching",
+      generate: async () => {
+        seen.push(await stageNow());
+        return { output: { summary: VALID_SUMMARY, findings: [] }, usage: { inputTokens: 1, outputTokens: 1 } };
+      },
+    };
+
+    await reviewPullRequest(event(), deps(model));
+
+    expect(seen).toEqual(["fetching_diff", "model_reviewing"]);
+    expect((await onlyReview()).review.status).toBe("completed");
+  });
+
   it("keeps an old review superseded when a newer commit arrives while it is running", async () => {
     const newer = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
     // While the first review waits on the model, a push to the PR is handled.

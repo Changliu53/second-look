@@ -29,6 +29,8 @@ const GENERATED_DIRECTORIES = [
   "vendor/",
   "coverage/",
   "__snapshots__/",
+  // Drizzle's migration bookkeeping: full schema snapshots as JSON.
+  "drizzle/meta/",
 ];
 
 // Skipped only at the repository root. Nested folders with these names are

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSignedInLogin } from "@/auth";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { stageLabel } from "@/components/review/review-progress";
+import { stageLabel } from "@/components/review/stage-labels";
 import { SiteHeader } from "@/components/site-header";
 import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
 import { listPublishedReviewsFor, listReviewsFor } from "@/dashboard/service";

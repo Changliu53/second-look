@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { REVIEW_STAGES, type ReviewStage } from "@/db/schema";
+import { STAGE_LABELS } from "./stage-labels";
 
 /**
  * Live view of a review that is still running: which step it is on and how
@@ -9,27 +10,21 @@ import { REVIEW_STAGES, type ReviewStage } from "@/db/schema";
  * step advances and the findings appear without a manual reload.
  */
 
-const STAGE_LABELS: Record<ReviewStage, { title: string; detail: string }> = {
-  fetching_diff: {
-    title: "Fetching the diff",
-    detail: "Asking GitHub for the pull request's changes.",
-  },
-  reading_files: {
-    title: "Reading the changed files and team rules",
-    detail: "Full file contents for context, and .second-look.md from the base branch.",
-  },
-  model_reviewing: {
-    title: "The model is reviewing",
-    detail: "One call. The code is passed as data, and the answer must match the findings schema.",
-  },
-};
-
-function useElapsedSeconds(startedAt: string): number {
-  const [now, setNow] = useState(() => Date.now());
+/**
+ * Seconds since the review started, or null before the first tick. It starts
+ * as null because the server and the browser read the clock at different
+ * moments; rendering a number on both would make their HTML disagree.
+ */
+function useElapsedSeconds(startedAt: string): number | null {
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  if (now === null) {
+    return null;
+  }
   return Math.max(0, Math.round((now - new Date(startedAt).getTime()) / 1000));
 }
 
@@ -71,7 +66,9 @@ export function ReviewProgress({
     <section role="status" className="mb-6 rounded-lg border border-blue-200 bg-accent-soft p-5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-base font-semibold tracking-tight">AI first pass in progress</h2>
-        <span className="font-mono text-sm text-ink-soft">{elapsed}s</span>
+        <span className="font-mono text-sm text-ink-soft">
+          {elapsed === null ? "" : `${elapsed}s`}
+        </span>
       </div>
       <ol className="mt-4 space-y-3">
         {REVIEW_STAGES.map((name, index) => {
@@ -95,9 +92,4 @@ export function ReviewProgress({
       </p>
     </section>
   );
-}
-
-/** Short label for lists. */
-export function stageLabel(stage: ReviewStage | null): string {
-  return stage === null ? "Starting" : STAGE_LABELS[stage].title;
 }

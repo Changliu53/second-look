@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { markPullRequestClosed } from "@/db/queries";
+import { markPullRequestClosed, renamePullRequest } from "@/db/queries";
 import { getInstallationClient } from "@/github/client";
 import { startReview } from "@/github/run-review";
 import { classifyWebhook } from "@/github/webhook";
@@ -34,6 +34,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       number: event.number,
     });
     return NextResponse.json({ closed: true });
+  }
+  if (decision.kind === "edited") {
+    // A new title, not new code: no review, no model call.
+    await renamePullRequest(getDb(), {
+      githubRepoId: event.repository.id,
+      number: event.number,
+      title: event.pull_request.title,
+    });
+    return NextResponse.json({ renamed: true });
   }
 
   // GitHub expects an answer within 10 seconds and a review takes longer.

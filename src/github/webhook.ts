@@ -9,6 +9,8 @@ export type WebhookDecision =
   | { kind: "rejected"; httpStatus: 400 | 401; reason: string }
   | { kind: "ignored"; reason: string }
   | { kind: "closed"; event: PullRequestEvent }
+  // The title or description changed. Nothing to review; the stored title is updated.
+  | { kind: "edited"; event: PullRequestEvent }
   | { kind: "review"; event: PullRequestEvent };
 
 /**
@@ -48,6 +50,9 @@ export async function classifyWebhook(input: {
 
   if (parsed.data.action === "closed") {
     return { kind: "closed", event: parsed.data };
+  }
+  if (parsed.data.action === "edited") {
+    return { kind: "edited", event: parsed.data };
   }
   if (!isReviewableAction(parsed.data.action)) {
     return { kind: "ignored", reason: `action ${parsed.data.action}` };

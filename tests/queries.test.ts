@@ -16,6 +16,7 @@ import {
   listPublishedReviews,
   markPullRequestClosed,
   removeHumanFinding,
+  renamePullRequest,
   updateHumanFinding,
   claimReviewForPublish,
   releasePublishClaim,
@@ -393,6 +394,18 @@ describe("getEarlierDecisions over several rounds", () => {
 
     const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
     expect(earlier?.rejected).toHaveLength(1);
+  });
+});
+
+describe("renamePullRequest", () => {
+  it("updates the title of a known pull request and ignores unknown ones", async () => {
+    const { repository, pullRequest } = await seedPullRequest(db);
+
+    await renamePullRequest(db, { githubRepoId: repository.githubRepoId, number: pullRequest.number, title: "New title" });
+    await renamePullRequest(db, { githubRepoId: 424242, number: 1, title: "Nobody" });
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+
+    expect((await getReviewDetail(db, review.id))!.pullRequest.title).toBe("New title");
   });
 });
 

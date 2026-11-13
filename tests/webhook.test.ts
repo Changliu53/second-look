@@ -85,7 +85,12 @@ describe("classifyWebhook", () => {
     expect(decision.event.number).toBe(7);
   });
 
-  it.each(["edited", "labeled", "converted_to_draft"])("ignores action %s", async (action) => {
+  it("reports an edited pull request so its title can be updated, without a review", async () => {
+    const body = pullRequestBody("edited");
+    expect((await classify(body, sign(body))).kind).toBe("edited");
+  });
+
+  it.each(["labeled", "converted_to_draft"])("ignores action %s", async (action) => {
     const body = pullRequestBody(action);
     expect((await classify(body, sign(body))).kind).toBe("ignored");
   });

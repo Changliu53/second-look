@@ -127,6 +127,34 @@ export async function markPullRequestClosed(
     );
 }
 
+/**
+ * Stores a pull request's new title. Only for a pull request already known:
+ * an edit does not start tracking one, a review does.
+ */
+export async function renamePullRequest(
+  db: Database,
+  input: { githubRepoId: number; number: number; title: string },
+  now: Date = new Date(),
+): Promise<void> {
+  const repoRows = await db
+    .select({ id: repositories.id })
+    .from(repositories)
+    .where(eq(repositories.githubRepoId, input.githubRepoId));
+  const repository = repoRows[0];
+  if (!repository) {
+    return;
+  }
+  await db
+    .update(pullRequests)
+    .set({ title: input.title, updatedAt: now })
+    .where(
+      and(
+        eq(pullRequests.repositoryId, repository.id),
+        eq(pullRequests.number, input.number),
+      ),
+    );
+}
+
 /** True when a review has been "running" for longer than a review can take. */
 export function isStaleRunning(review: Review, now: Date = new Date()): boolean {
   const age = now.getTime() - review.createdAt.getTime();

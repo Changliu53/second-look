@@ -162,6 +162,10 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
               </li>
             ))}
           </ul>
+          {/* On a phone the review is below this whole panel. */}
+          <a href="#result" className="mt-2 inline-block text-sm text-accent underline-offset-2 hover:underline lg:hidden">
+            Jump down to the review
+          </a>
         </section>
 
         <section>

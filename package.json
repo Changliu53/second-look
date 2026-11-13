@@ -10,7 +10,8 @@
     "eval": "tsx eval/run.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "examples:build": "tsx scripts/build-examples.ts"
+    "examples:build": "tsx scripts/build-examples.ts",
+    "github-app:create": "tsx scripts/create-github-app.ts"
   },
   "repository": {
     "type": "git",

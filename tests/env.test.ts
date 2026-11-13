@@ -17,6 +17,13 @@ describe("getExamplePullRequests", () => {
       { owner: "acme", name: "api", number: 3 },
     ]);
     expect(getExamplePullRequests({})).toEqual([]);
+    expect(getExamplePullRequests({ EXAMPLE_PULL_REQUESTS: "  " })).toEqual([]);
+  });
+
+  it("prefers EXAMPLE_PULL_REQUESTS and falls back to the older DEMO_PULL_REQUEST", () => {
+    const both = { EXAMPLE_PULL_REQUESTS: "acme/new#2", DEMO_PULL_REQUEST: "acme/old#1" };
+    expect(getExamplePullRequests(both).map((p) => p.name)).toEqual(["new"]);
+    expect(getExamplePullRequests({ DEMO_PULL_REQUEST: "acme/old#1" }).map((p) => p.name)).toEqual(["old"]);
     expect(getExamplePullRequests({ DEMO_PULL_REQUEST: "" })).toEqual([]);
   });
 });

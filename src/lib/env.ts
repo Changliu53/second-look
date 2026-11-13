@@ -73,12 +73,16 @@ const PULL_REQUEST_REF = /^([\w.-]+)\/([\w.-]+)#(\d+)$/;
  * "owner/repo#number" and separated by commas. Point it at public
  * repositories only: the page shows their published reviews to anyone,
  * signed in or not. Entries that do not parse are ignored.
+ *
+ * EXAMPLE_PULL_REQUESTS is the current name. DEMO_PULL_REQUEST is the older
+ * one and is still read when the new one is not set.
  */
 export function getExamplePullRequests(
   env: EnvSource = process.env,
 ): PullRequestRef[] {
   const refs: PullRequestRef[] = [];
-  for (const part of (env.DEMO_PULL_REQUEST ?? "").split(",")) {
+  const configured = env.EXAMPLE_PULL_REQUESTS?.trim() || env.DEMO_PULL_REQUEST || "";
+  for (const part of configured.split(",")) {
     const match = PULL_REQUEST_REF.exec(part.trim());
     if (match) {
       refs.push({ owner: match[1]!, name: match[2]!, number: Number(match[3]) });

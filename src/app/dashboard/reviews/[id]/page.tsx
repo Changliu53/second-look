@@ -22,6 +22,11 @@ import { dashboardDeps } from "../../deps";
 
 export const dynamic = "force-dynamic";
 
+// "Run the review again" is a server action on this page, and the review it
+// starts keeps running in after() within this page's time limit. The same
+// limit as the webhook, which starts the same work.
+export const maxDuration = 300;
+
 type PageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; compose?: string; decided?: string }>;

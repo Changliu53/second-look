@@ -1,19 +1,19 @@
 {
   "model": "claude-opus-5-5",
-  "ranAt": "2026-11-12T23:38:29.617Z",
+  "ranAt": "2026-11-13T00:04:42.947Z",
   "totals": {
-    "plantedTotal": 8,
-    "plantedFound": 8,
-    "falsePositives": 5,
-    "extraNits": 1,
+    "plantedTotal": 12,
+    "plantedFound": 12,
+    "falsePositives": 6,
+    "extraNits": 0,
     "riskLevelViolations": 0,
     "recall": 1,
-    "precision": 0.6153846153846154
+    "precision": 0.6666666666666666
   },
   "errors": 0,
   "tokens": {
-    "input": 27744,
-    "output": 6962
+    "input": 41439,
+    "output": 9717
   },
   "cases": [
     {
@@ -31,11 +31,29 @@
       "plantedFound": 0,
       "plantedTotal": 0,
       "falsePositives": 0,
-      "extraNits": 1,
+      "extraNits": 0,
       "riskLevelViolation": false
     },
     {
-      "name": "hallucinated-api",
+      "name": "ef-migration-drops-data",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "ef-missing-tenant-filter",
+      "error": null,
+      "plantedFound": 2,
+      "plantedTotal": 2,
+      "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "ef-required-fk-existing-rows",
       "error": null,
       "plantedFound": 1,
       "plantedTotal": 1,
@@ -44,11 +62,20 @@
       "riskLevelViolation": false
     },
     {
-      "name": "hardcoded-key",
+      "name": "hallucinated-api",
       "error": null,
       "plantedFound": 1,
       "plantedTotal": 1,
       "falsePositives": 1,
+      "extraNits": 0,
+      "riskLevelViolation": false
+    },
+    {
+      "name": "hardcoded-key",
+      "error": null,
+      "plantedFound": 1,
+      "plantedTotal": 1,
+      "falsePositives": 0,
       "extraNits": 0,
       "riskLevelViolation": false
     },
@@ -66,7 +93,7 @@
       "error": null,
       "plantedFound": 1,
       "plantedTotal": 1,
-      "falsePositives": 1,
+      "falsePositives": 0,
       "extraNits": 0,
       "riskLevelViolation": false
     },

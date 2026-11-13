@@ -16,6 +16,83 @@
   --color-accent-soft: oklch(0.96 0.02 255);
 }
 
+/* `dark:` utilities follow the theme chosen on <html>, not only the system. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  color-scheme: light;
+}
+
+/*
+ * The dark theme. Components use Tailwind's colour scales by name (slate-900
+ * for strong text and solid buttons, green-50 for a tinted panel), so the
+ * dark theme redefines the scales themselves, mirrored: a step that was
+ * nearly black becomes nearly white and the other way round. "white" is
+ * mirrored too, so white text on a slate-900 button turns into dark text on
+ * a light button. Nothing in a component has to know which theme is on.
+ *
+ * Only the steps the app uses are listed. A new step used in a component
+ * needs a line here, or it keeps its light value in the dark theme.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-ink: oklch(0.93 0.006 260);
+  --color-ink-soft: oklch(0.72 0.015 260);
+  --color-surface: oklch(0.17 0.012 260);
+  --color-surface-raised: oklch(0.21 0.014 260);
+  --color-edge: oklch(0.31 0.014 260);
+  --color-accent: oklch(0.74 0.13 255);
+  --color-accent-soft: oklch(0.27 0.055 255);
+
+  --color-white: oklch(0.17 0.012 260);
+
+  --color-slate-50: oklch(0.2 0.013 260);
+  --color-slate-100: oklch(0.25 0.014 260);
+  --color-slate-200: oklch(0.3 0.015 260);
+  --color-slate-300: oklch(0.38 0.016 260);
+  --color-slate-400: oklch(0.52 0.018 260);
+  --color-slate-500: oklch(0.62 0.018 260);
+  --color-slate-600: oklch(0.74 0.015 260);
+  --color-slate-700: oklch(0.81 0.012 260);
+  --color-slate-800: oklch(0.87 0.01 260);
+  --color-slate-900: oklch(0.93 0.007 260);
+  --color-slate-950: oklch(0.97 0.004 260);
+
+  --color-green-50: oklch(0.24 0.04 152);
+  --color-green-100: oklch(0.28 0.05 152);
+  --color-green-200: oklch(0.36 0.07 152);
+  --color-green-300: oklch(0.44 0.09 152);
+  --color-green-600: oklch(0.7 0.16 150);
+  --color-green-700: oklch(0.76 0.15 150);
+  --color-green-800: oklch(0.83 0.12 152);
+  --color-green-900: oklch(0.89 0.09 154);
+  --color-green-950: oklch(0.94 0.05 155);
+
+  --color-red-50: oklch(0.25 0.05 22);
+  --color-red-100: oklch(0.29 0.06 22);
+  --color-red-200: oklch(0.38 0.09 22);
+  --color-red-600: oklch(0.7 0.17 25);
+  --color-red-700: oklch(0.75 0.15 24);
+  --color-red-800: oklch(0.82 0.11 22);
+  --color-red-900: oklch(0.88 0.08 20);
+
+  --color-amber-50: oklch(0.26 0.04 80);
+  --color-amber-100: oklch(0.3 0.05 80);
+  --color-amber-200: oklch(0.4 0.07 80);
+  --color-amber-300: oklch(0.48 0.09 80);
+  --color-amber-500: oklch(0.76 0.15 75);
+  --color-amber-700: oklch(0.82 0.13 80);
+  --color-amber-900: oklch(0.9 0.08 90);
+  --color-amber-950: oklch(0.94 0.05 92);
+
+  --color-blue-100: oklch(0.28 0.06 255);
+  --color-blue-200: oklch(0.38 0.09 255);
+  --color-blue-500: oklch(0.68 0.15 255);
+  --color-blue-700: oklch(0.77 0.12 255);
+  --color-blue-950: oklch(0.94 0.04 255);
+}
+
 body {
   background: var(--color-surface);
   color: var(--color-ink);

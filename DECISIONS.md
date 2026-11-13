@@ -256,3 +256,8 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** After the last decision nothing on the page changed except a number, and the reviewer had to notice that the count had reached zero to know they were done.
 **Details:** Changing an earlier decision does not show the message again, because nothing was finished by it.
 
+## 48. The dark theme mirrors the colour scales
+**What:** There is a dark theme, chosen by the system setting or by the button in the top bar (remembered in the browser). It is one block of CSS that redefines the colour scales the components already use, mirrored: `slate-900` becomes nearly white, `slate-50` nearly black, and `white` dark.
+**Why:** Components name colours by scale step (`bg-slate-900` for a solid button, `bg-red-50` for a tinted panel). Mirroring the scales turns every one of them at once and keeps contrast pairs together: white text on a slate-900 button becomes dark text on a light button. The other way is a `dark:` class beside every colour class in every component, which is hundreds of edits and easy to miss one.
+**Limit:** Only the steps in use are redefined. A component that starts using a new step needs a line in the dark block, or that colour stays light. A short script in the page head sets the theme before first paint, so the page does not flash; with scripts off, the page is light.
+

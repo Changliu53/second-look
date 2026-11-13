@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "./theme-toggle";
 
 export const REPO_URL = "https://github.com/Changliu53/second-look";
 
@@ -71,6 +72,7 @@ export function SiteHeader({
           <a href={REPO_URL} className="text-ink-soft transition hover:text-ink">
             Source on GitHub
           </a>
+          <ThemeToggle />
         </div>
       </div>
     </header>

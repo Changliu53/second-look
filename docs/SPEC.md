@@ -1,6 +1,6 @@
 # Original specification
 
-The brief this project was built from, kept as written. The build ran as AI-assisted sessions working from this document; design choices made along the way are in [DECISIONS.md](../DECISIONS.md).
+The brief this project was built from. The build ran as AI-assisted sessions working from this document; design choices made along the way are in [DECISIONS.md](../DECISIONS.md).
 
 ---
 

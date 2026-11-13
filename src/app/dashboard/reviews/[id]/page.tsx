@@ -1,10 +1,14 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getSignedInLogin } from "@/auth";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { FindingKeys } from "@/components/review/finding-keys";
 import { ReviewContent } from "@/components/review/review-content";
+import { SiteHeader } from "@/components/site-header";
+import { BUTTON_PRIMARY, INPUT, LINK, SECTION_LABEL } from "@/components/ui";
 import { ACTION_ERRORS, getReviewFor, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
+import { countByStatus } from "@/sandbox/model";
 import { publishReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
 
@@ -28,7 +32,7 @@ function lockedReason(detail: ReviewDetail): string | null {
     return "The AI review did not finish. It may have timed out. Close and reopen the pull request to run it again.";
   }
   if (review.status === "running") {
-    return "The AI review is still running. Reload in a minute.";
+    return "The AI review is running. This page updates by itself when it is done.";
   }
   if (review.status === "failed") {
     return "The AI review failed. Close and reopen the pull request to run it again.";
@@ -36,32 +40,93 @@ function lockedReason(detail: ReviewDetail): string | null {
   return null;
 }
 
-function PublishForm({ detail }: { detail: ReviewDetail }) {
-  const pending = detail.findings.filter((f) => f.status === "pending").length;
-  const confirmed = detail.findings.filter((f) => f.status === "confirmed").length;
+function pullRequestUrl(detail: ReviewDetail): string {
+  const { repository, pullRequest } = detail;
+  return `https://github.com/${repository.owner}/${repository.name}/pull/${pullRequest.number}`;
+}
+
+/** Stays visible while scrolling: how far along the reviewer is. */
+function ProgressBar({ detail, locked }: { detail: ReviewDetail; locked: boolean }) {
+  const counts = countByStatus(detail.findings);
+  const critical = detail.findings.filter(
+    (f) => f.severity === "critical" && f.status !== "rejected",
+  ).length;
+
   return (
-    <form action={publishReviewAction} className="mt-8 rounded border border-slate-200 p-4">
+    <div className="sticky top-0 z-10 border-b border-edge bg-surface-raised/95 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-1 px-5 py-2">
+        <p className="text-sm">
+          <span className="font-semibold">{counts.pending}</span>
+          <span className="text-ink-soft"> pending</span>
+          <span className="mx-2 text-slate-300">·</span>
+          <span className="font-semibold text-green-700">{counts.confirmed}</span>
+          <span className="text-ink-soft"> confirmed</span>
+          <span className="mx-2 text-slate-300">·</span>
+          <span className="font-semibold">{counts.rejected}</span>
+          <span className="text-ink-soft"> rejected</span>
+          {critical > 0 && (
+            <>
+              <span className="mx-2 text-slate-300">·</span>
+              <span className="font-semibold text-red-700">{critical}</span>
+              <span className="text-ink-soft"> critical in play</span>
+            </>
+          )}
+        </p>
+        <div className="ml-auto flex items-center gap-4">
+          {!locked && <FindingKeys />}
+          {!locked && (
+            <a href="#publish" className={LINK + " text-sm"}>
+              Go to publish
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PublishForm({ detail }: { detail: ReviewDetail }) {
+  const counts = countByStatus(detail.findings);
+  const confirmedCritical = detail.findings.filter(
+    (f) => f.status === "confirmed" && f.severity === "critical",
+  ).length;
+
+  return (
+    <form
+      id="publish"
+      action={publishReviewAction}
+      className="mt-8 scroll-mt-20 rounded-lg border border-edge bg-surface-raised p-5"
+    >
       <input type="hidden" name="reviewId" value={detail.review.id} />
-      <h2 className="font-semibold">Publish review</h2>
-      <p className="mt-1 text-sm text-slate-700">
-        Posts the summary and {confirmed} confirmed finding{confirmed === 1 ? "" : "s"} to
-        the pull request as one review. Rejected findings are not shown to the author.
+      <h2 className={SECTION_LABEL}>Publish review</h2>
+      <p className="mt-2 text-sm leading-relaxed">
+        Posts the summary and {counts.confirmed} confirmed finding
+        {counts.confirmed === 1 ? "" : "s"} to the pull request as one review. The{" "}
+        {counts.rejected} rejected finding{counts.rejected === 1 ? " is" : "s are"} not shown to
+        the author. The check will then{" "}
+        {confirmedCritical > 0 ? (
+          <strong className="text-red-700">require action ({confirmedCritical} critical)</strong>
+        ) : (
+          <strong className="text-green-700">pass</strong>
+        )}
+        .
       </p>
       <label className="mt-3 block text-sm">
         Note to the author (optional)
-        <textarea name="note" rows={2} maxLength={2000} className="mt-1 block w-full rounded border border-slate-300 p-2 text-sm" />
+        <textarea name="note" rows={2} maxLength={2000} className={`mt-1 ${INPUT}`} />
       </label>
-      <button
-        disabled={pending > 0}
-        className="mt-3 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-      >
-        Publish review
-      </button>
-      {pending > 0 && (
-        <span className="ml-3 text-sm text-slate-600">
-          {pending} finding{pending === 1 ? "" : "s"} still pending.
-        </span>
-      )}
+      <div className="mt-3 flex items-center gap-3">
+        <button disabled={counts.pending > 0} className={BUTTON_PRIMARY}>
+          Publish review
+        </button>
+        {counts.pending > 0 && (
+          <span className="text-sm text-ink-soft">
+            {counts.pending} finding{counts.pending === 1 ? "" : "s"} still pending. Press{" "}
+            <kbd className="rounded border border-edge px-1 font-mono text-xs">n</kbd> to jump to
+            the next one.
+          </span>
+        )}
+      </div>
     </form>
   );
 }
@@ -86,26 +151,40 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
   const error = errorCode in ACTION_ERRORS ? ACTION_ERRORS[errorCode as ActionErrorCode] : null;
   const reason = lockedReason(detail);
   const locked = reason !== null;
+  const isRunning = detail.review.status === "running" && !isStaleRunning(detail.review);
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <Link className="text-sm text-blue-700 underline" href="/dashboard">
-        All reviews
-      </Link>
-      {error && (
-        <p role="alert" className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
-      {reason && (
-        <p className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          {reason}
-        </p>
-      )}
+    <>
+      <SiteHeader current="/dashboard">
+        <span className="text-ink-soft">{login}</span>
+      </SiteHeader>
+      {isRunning && <AutoRefresh seconds={5} />}
+      {detail.findings.length > 0 && <ProgressBar detail={detail} locked={locked} />}
 
-      <ReviewContent detail={detail} diff={diff} locked={locked} />
+      <main className="mx-auto max-w-5xl px-5 py-8">
+        {error && (
+          <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            {error}
+          </p>
+        )}
+        {reason && (
+          <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {reason}
+            {detail.review.publishedAt !== null && (
+              <>
+                {" "}
+                <a className="font-medium underline" href={pullRequestUrl(detail)}>
+                  See it on GitHub
+                </a>
+              </>
+            )}
+          </p>
+        )}
 
-      {!locked && <PublishForm detail={detail} />}
-    </main>
+        <ReviewContent detail={detail} diff={diff} locked={locked} />
+
+        {!locked && <PublishForm detail={detail} />}
+      </main>
+    </>
   );
 }

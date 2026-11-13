@@ -304,7 +304,49 @@ export type ReviewListItem = {
   repository: Repository;
   pendingCount: number;
   confirmedCount: number;
+  /** Confirmed plus rejected. */
+  decidedCount: number;
 };
+
+type ReviewRow = Pick<ReviewListItem, "review" | "pullRequest" | "repository">;
+
+/** Adds per-status finding counts to a list of reviews with one extra query. */
+async function withFindingCounts(
+  db: Database,
+  rows: ReviewRow[],
+): Promise<ReviewListItem[]> {
+  if (rows.length === 0) {
+    return [];
+  }
+  const counts = await db
+    .select({
+      reviewId: findings.reviewId,
+      status: findings.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(findings)
+    .where(
+      inArray(
+        findings.reviewId,
+        rows.map((row) => row.review.id),
+      ),
+    )
+    .groupBy(findings.reviewId, findings.status);
+
+  const countFor = (reviewId: number, status: Finding["status"]) =>
+    counts.find((c) => c.reviewId === reviewId && c.status === status)?.count ??
+    0;
+
+  return rows.map((row) => {
+    const confirmedCount = countFor(row.review.id, "confirmed");
+    return {
+      ...row,
+      pendingCount: countFor(row.review.id, "pending"),
+      confirmedCount,
+      decidedCount: confirmedCount + countFor(row.review.id, "rejected"),
+    };
+  });
+}
 
 /** Reviews a human still has to act on: open PR, not published, not superseded. */
 export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
@@ -325,35 +367,27 @@ export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
       ),
     )
     .orderBy(desc(reviews.createdAt));
+  return withFindingCounts(db, rows);
+}
 
-  if (rows.length === 0) {
-    return [];
-  }
-
-  const counts = await db
+/** The most recently published reviews, newest first. */
+export async function listPublishedReviews(
+  db: Database,
+  limit: number,
+): Promise<ReviewListItem[]> {
+  const rows = await db
     .select({
-      reviewId: findings.reviewId,
-      status: findings.status,
-      count: sql<number>`count(*)::int`,
+      review: reviews,
+      pullRequest: pullRequests,
+      repository: repositories,
     })
-    .from(findings)
-    .where(
-      inArray(
-        findings.reviewId,
-        rows.map((row) => row.review.id),
-      ),
-    )
-    .groupBy(findings.reviewId, findings.status);
-
-  const countFor = (reviewId: number, status: Finding["status"]) =>
-    counts.find((c) => c.reviewId === reviewId && c.status === status)?.count ??
-    0;
-
-  return rows.map((row) => ({
-    ...row,
-    pendingCount: countFor(row.review.id, "pending"),
-    confirmedCount: countFor(row.review.id, "confirmed"),
-  }));
+    .from(reviews)
+    .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
+    .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
+    .where(isNotNull(reviews.publishedAt))
+    .orderBy(desc(reviews.publishedAt))
+    .limit(limit);
+  return withFindingCounts(db, rows);
 }
 
 export type ReviewDetail = {

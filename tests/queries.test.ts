@@ -9,6 +9,7 @@ import {
   failReview,
   getReviewDetail,
   listOpenReviews,
+  listPublishedReviews,
   markPullRequestClosed,
   claimReviewForPublish,
   releasePublishClaim,
@@ -276,6 +277,23 @@ describe("review lifecycle", () => {
 
     await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "LGTM after fixes" });
     expect(await listOpenReviews(db)).toEqual([]);
+  });
+
+  it("lists published reviews newest first with how many findings were sent", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(3));
+    const [first, second] = (await getReviewDetail(db, review.id))!.findings;
+    await decideFinding(db, first!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, second!.id, { status: "rejected", rejectionReason: null }, "lee");
+    expect(await listPublishedReviews(db, 10)).toEqual([]);
+
+    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: null });
+
+    const published = await listPublishedReviews(db, 10);
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({ confirmedCount: 1, decidedCount: 2, pendingCount: 1 });
+    expect(await listPublishedReviews(db, 0)).toEqual([]);
   });
 
   it("lets only the first of two publish attempts claim the review", async () => {

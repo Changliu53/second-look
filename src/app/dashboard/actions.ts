@@ -32,13 +32,18 @@ async function requireLogin(): Promise<string> {
   return login;
 }
 
-/** Returns to the review page, showing the error if the action failed. */
-function finish(reviewId: number, result: ActionResult): never {
+/**
+ * Returns to the review page. After acting on a finding the URL ends in
+ * "#finding-<id>", so the browser scrolls back to where the reviewer was
+ * instead of to the top of a long diff.
+ */
+function finish(reviewId: number, result: ActionResult, findingId?: number): never {
   revalidatePath(reviewPath(reviewId));
+  const anchor = findingId === undefined ? "" : `#finding-${findingId}`;
   if (!result.ok) {
-    redirect(`${reviewPath(reviewId)}?error=${result.error}`);
+    redirect(`${reviewPath(reviewId)}?error=${result.error}${anchor}`);
   }
-  redirect(reviewPath(reviewId));
+  redirect(`${reviewPath(reviewId)}${anchor}`);
 }
 
 function readIds(formData: FormData): { reviewId: number; findingId: number } {
@@ -55,7 +60,7 @@ function optionalText(value: FormDataEntryValue | null): string | null {
 export async function confirmFindingAction(formData: FormData): Promise<void> {
   const login = await requireLogin();
   const { reviewId, findingId } = readIds(formData);
-  finish(reviewId, await decideFindingFor(findingId, { status: "confirmed" }, login, dashboardDeps()));
+  finish(reviewId, await decideFindingFor(findingId, { status: "confirmed" }, login, dashboardDeps()), findingId);
 }
 
 export async function rejectFindingAction(formData: FormData): Promise<void> {
@@ -65,13 +70,13 @@ export async function rejectFindingAction(formData: FormData): Promise<void> {
     status: "rejected" as const,
     rejectionReason: optionalText(formData.get("reason")),
   };
-  finish(reviewId, await decideFindingFor(findingId, decision, login, dashboardDeps()));
+  finish(reviewId, await decideFindingFor(findingId, decision, login, dashboardDeps()), findingId);
 }
 
 export async function resetFindingAction(formData: FormData): Promise<void> {
   const login = await requireLogin();
   const { reviewId, findingId } = readIds(formData);
-  finish(reviewId, await decideFindingFor(findingId, { status: "pending" }, login, dashboardDeps()));
+  finish(reviewId, await decideFindingFor(findingId, { status: "pending" }, login, dashboardDeps()), findingId);
 }
 
 export async function editFindingAction(formData: FormData): Promise<void> {
@@ -81,7 +86,7 @@ export async function editFindingAction(formData: FormData): Promise<void> {
     explanation: formData.get("explanation"),
     suggestedFix: formData.get("suggestedFix") ?? "",
   };
-  finish(reviewId, await editFindingFor(findingId, edit, login, dashboardDeps()));
+  finish(reviewId, await editFindingFor(findingId, edit, login, dashboardDeps()), findingId);
 }
 
 export async function publishReviewAction(formData: FormData): Promise<void> {

@@ -1,21 +1,18 @@
-import { CategoryBadge, SeverityBadge } from "@/components/badges";
-import type { Finding } from "@/db/schema";
-import { publishedText } from "@/github/publish";
 import {
   confirmFindingAction,
   editFindingAction,
   rejectFindingAction,
   resetFindingAction,
 } from "@/app/dashboard/actions";
-
-const STATUS_STYLES: Record<Finding["status"], string> = {
-  pending: "border-l-slate-400",
-  confirmed: "border-l-green-600",
-  rejected: "border-l-slate-300 opacity-60",
-};
-
-const BUTTON = "rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium hover:bg-slate-50";
-const INPUT = "mt-1 block w-full rounded border border-slate-300 p-1 text-xs";
+import { BUTTON, BUTTON_CONFIRM, INPUT } from "@/components/ui";
+import type { Finding } from "@/db/schema";
+import { publishedText } from "@/github/publish";
+import {
+  COMMON_REJECT_REASONS,
+  FindingFrame,
+  FindingHeader,
+  FindingText,
+} from "./finding-view";
 
 function Ids({ finding }: { finding: Finding }) {
   return (
@@ -26,87 +23,62 @@ function Ids({ finding }: { finding: Finding }) {
   );
 }
 
-function lineLabel(finding: Finding): string {
-  return finding.startLine === finding.endLine
-    ? `${finding.filePath}:${finding.startLine}`
-    : `${finding.filePath}:${finding.startLine}-${finding.endLine}`;
-}
-
 /**
  * One finding with its Confirm / Reject / Edit controls. Plain HTML forms and
- * <details> elements posting to server actions, so there is no client-side
- * state to keep in sync with the database.
+ * <details> elements posting to server actions, so the page works without
+ * JavaScript and there is no client state to keep in sync with the database.
+ * The data-action attributes are what the keyboard shortcuts press.
  */
 export function FindingCard({ finding, locked }: { finding: Finding; locked: boolean }) {
   const text = publishedText(finding);
-  const wasEdited = finding.editedExplanation !== null;
+  const reasonsId = `reasons-${finding.id}`;
 
   return (
-    <div className={`my-2 rounded border border-l-4 border-slate-200 bg-white p-3 font-sans text-sm ${STATUS_STYLES[finding.status]}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <SeverityBadge severity={finding.severity} />
-        <CategoryBadge category={finding.category} />
-        <span className="font-mono text-xs text-slate-600">{lineLabel(finding)}</span>
-        <span className="text-xs text-slate-500">
-          confidence {Math.round(finding.confidence * 100)}%
-        </span>
-        <span className="ml-auto text-xs font-medium uppercase text-slate-600">
-          {finding.status}
-          {finding.decidedBy && ` by ${finding.decidedBy}`}
-        </span>
-      </div>
-
-      <p className="mt-2 whitespace-pre-wrap">{text.explanation}</p>
-      {text.suggestedFix && (
-        <p className="mt-2 whitespace-pre-wrap text-slate-700">
-          <span className="font-medium">Suggested fix: </span>
-          {text.suggestedFix}
-        </p>
-      )}
-      {wasEdited && (
-        <details className="mt-2 text-xs text-slate-500">
-          <summary className="cursor-pointer">Edited. Show the original AI text</summary>
-          <p className="mt-1 whitespace-pre-wrap">{finding.explanation}</p>
-        </details>
-      )}
-      {finding.status === "rejected" && finding.rejectionReason && (
-        <p className="mt-2 text-xs text-slate-600">Reason: {finding.rejectionReason}</p>
-      )}
+    <FindingFrame finding={finding}>
+      <FindingHeader finding={finding} />
+      <FindingText finding={finding} />
 
       {!locked && (
         <div className="mt-3 flex flex-wrap items-start gap-2">
           {finding.status !== "confirmed" && (
             <form action={confirmFindingAction}>
               <Ids finding={finding} />
-              <button className={`${BUTTON} border-green-600 text-green-800`}>Confirm</button>
+              <button data-action="confirm" className={BUTTON_CONFIRM}>
+                Confirm
+              </button>
             </form>
           )}
 
           {finding.status !== "rejected" && (
-            <details>
-              <summary className={`${BUTTON} inline-block cursor-pointer list-none`}>Reject</summary>
-              <form action={rejectFindingAction} className="mt-2 w-72">
+            <details data-action="reject">
+              <summary className={`${BUTTON} cursor-pointer list-none`}>Reject</summary>
+              <form action={rejectFindingAction} className="mt-2 w-80 max-w-full">
                 <Ids finding={finding} />
-                <label className="text-xs text-slate-600">
-                  Reason (optional)
-                  <input name="reason" maxLength={500} className={INPUT} />
+                <label className="text-xs text-ink-soft">
+                  Reason (optional, the author never sees it)
+                  <input name="reason" maxLength={500} list={reasonsId} className={`mt-1 ${INPUT}`} />
                 </label>
+                <datalist id={reasonsId}>
+                  {COMMON_REJECT_REASONS.map((reason) => (
+                    <option key={reason} value={reason} />
+                  ))}
+                </datalist>
                 <button className={`${BUTTON} mt-2`}>Reject finding</button>
               </form>
             </details>
           )}
 
-          <details>
-            <summary className={`${BUTTON} inline-block cursor-pointer list-none`}>Edit</summary>
-            <form action={editFindingAction} className="mt-2 w-96 max-w-full">
+          <details data-action="edit">
+            <summary className={`${BUTTON} cursor-pointer list-none`}>Edit</summary>
+            <form action={editFindingAction} className="mt-2 w-[28rem] max-w-full">
               <Ids finding={finding} />
-              <label className="text-xs text-slate-600">
+              <label className="text-xs text-ink-soft">
                 Explanation
-                <textarea name="explanation" required rows={4} defaultValue={text.explanation} className={INPUT} />
+                <textarea name="explanation" required rows={4} defaultValue={text.explanation} className={`mt-1 ${INPUT}`} />
               </label>
-              <label className="mt-2 block text-xs text-slate-600">
+              <label className="mt-2 block text-xs text-ink-soft">
                 Suggested fix (optional)
-                <textarea name="suggestedFix" rows={3} defaultValue={text.suggestedFix ?? ""} className={INPUT} />
+                <textarea name="suggestedFix" rows={3} defaultValue={text.suggestedFix ?? ""} className={`mt-1 ${INPUT}`} />
               </label>
               <button className={`${BUTTON} mt-2`}>Save and confirm</button>
             </form>
@@ -115,11 +87,13 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
           {finding.status !== "pending" && (
             <form action={resetFindingAction}>
               <Ids finding={finding} />
-              <button className={`${BUTTON} text-slate-600`}>Undo</button>
+              <button data-action="undo" className={`${BUTTON} text-ink-soft`}>
+                Undo
+              </button>
             </form>
           )}
         </div>
       )}
-    </div>
+    </FindingFrame>
   );
 }

@@ -8,6 +8,7 @@ import {
   getLatestPublishedReview,
   getReviewDetail,
   listOpenReviews,
+  listPublishedReviews,
   recordGithubReviewId,
   releasePublishClaim,
   type FindingDecision,
@@ -72,11 +73,16 @@ async function loadReviewFor(
   return allowed ? { detail, github } : null;
 }
 
-export async function listReviewsFor(login: string, deps: DashboardDeps): Promise<ReviewListItem[]> {
-  const items = await listOpenReviews(deps.db);
+/** Keeps only the reviews of repositories the user may review. */
+async function visibleTo(
+  login: string,
+  items: ReviewListItem[],
+  deps: DashboardDeps,
+): Promise<ReviewListItem[]> {
+  // One permission lookup per repository, however many reviews it has.
   const allowedByRepo = new Map<number, boolean>();
-
   const visible: ReviewListItem[] = [];
+
   for (const item of items) {
     let allowed = allowedByRepo.get(item.repository.id);
     if (allowed === undefined) {
@@ -89,6 +95,19 @@ export async function listReviewsFor(login: string, deps: DashboardDeps): Promis
     }
   }
   return visible;
+}
+
+export async function listReviewsFor(login: string, deps: DashboardDeps): Promise<ReviewListItem[]> {
+  return visibleTo(login, await listOpenReviews(deps.db), deps);
+}
+
+const RECENT_PUBLISHED_LIMIT = 10;
+
+export async function listPublishedReviewsFor(
+  login: string,
+  deps: DashboardDeps,
+): Promise<ReviewListItem[]> {
+  return visibleTo(login, await listPublishedReviews(deps.db, RECENT_PUBLISHED_LIMIT), deps);
 }
 
 export async function getReviewFor(

@@ -1,8 +1,10 @@
 import { SummaryCard } from "@/components/summary-card";
+import { LINK, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { ReviewDetail } from "@/db/queries";
 import { parseUnifiedDiff } from "@/review/diff";
 import { DiffFile } from "./diff-file";
+import { FindingOutline } from "./finding-outline";
 import { FindingCard } from "./finding-card";
 
 /**
@@ -24,10 +26,10 @@ export function ReviewContent({
 
   return (
     <>
-      <h1 className="mt-2 text-2xl font-semibold">{pullRequest.title}</h1>
-      <p className="mt-1 text-sm text-slate-600">
+      <h1 className="text-2xl font-semibold tracking-tight">{pullRequest.title}</h1>
+      <p className="mt-1 text-sm text-ink-soft">
         <a
-          className="text-blue-700 underline"
+          className={LINK}
           href={`https://github.com/${repository.owner}/${repository.name}/pull/${pullRequest.number}`}
         >
           {repository.owner}/{repository.name}#{pullRequest.number}
@@ -42,19 +44,29 @@ export function ReviewContent({
         </div>
       )}
 
+      {detail.findings.length > 0 && (
+        <div className="mt-4">
+          <FindingOutline findings={detail.findings} />
+        </div>
+      )}
+
       {diff === null && (
-        <p className="mt-6 text-sm text-slate-600">
+        <p className="mt-6 text-sm text-ink-soft">
           The diff could not be loaded from GitHub. Findings are listed below without it.
         </p>
       )}
 
       {view.files.map((file) => (
-        <DiffFile key={file.path} file={file} locked={locked} />
+        <DiffFile
+          key={file.path}
+          file={file}
+          renderFinding={(finding) => <FindingCard finding={finding} locked={locked} />}
+        />
       ))}
 
       {view.unplaced.length > 0 && (
         <section className="mt-8">
-          <h2 className="font-semibold">Findings outside the changed lines</h2>
+          <h2 className={SECTION_LABEL}>Findings outside the changed lines</h2>
           {view.unplaced.map((finding) => (
             <FindingCard key={finding.id} finding={finding} locked={locked} />
           ))}

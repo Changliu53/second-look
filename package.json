@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "eval": "tsx eval/run.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "examples:build": "tsx scripts/build-examples.ts"
   },
   "repository": {
     "type": "git",

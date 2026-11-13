@@ -15,7 +15,12 @@ import type { Finding } from "@/db/schema";
 import type { Example } from "@/examples/examples";
 import type { SavedResult } from "@/examples/saved";
 import { checkRunFor } from "@/github/check-run";
-import { buildReviewParts, fixPromptFor, type Resolution } from "@/github/publish";
+import {
+  buildReviewParts,
+  fixPromptFor,
+  fixPromptSection,
+  type Resolution,
+} from "@/github/publish";
 import type { PasteSuccess } from "@/paste/handle-paste";
 import { parseUnifiedDiff } from "@/review/diff";
 import { PASTED_FILE_NAME, toReviewableDiff } from "@/review/paste";
@@ -481,7 +486,11 @@ function AuthorView({
     const comments = parts.comments.map(
       (comment) => `### ${comment.path}:${comment.line}\n\n${comment.body}`,
     );
-    await navigator.clipboard.writeText([parts.main, ...comments, parts.footer].join("\n\n"));
+    // Same order as the real review: body, fix prompt, footer, then comments.
+    const promptSection = parts.fixPrompt ? [fixPromptSection(parts.fixPrompt)] : [];
+    await navigator.clipboard.writeText(
+      [parts.main, ...promptSection, parts.footer, ...comments].join("\n\n"),
+    );
     setCopied(true);
   }
 

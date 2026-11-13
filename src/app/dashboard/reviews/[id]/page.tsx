@@ -180,7 +180,9 @@ function PublishForm({ detail }: { detail: ReviewDetail }) {
 function Handoff({ detail }: { detail: ReviewDetail }) {
   const { review, pullRequest } = detail;
   const confirmed = detail.findings.filter((f) => f.status === "confirmed");
-  if (review.publishedAt === null || confirmed.length === 0) {
+  // Reviews published before publish modes existed have no resolution and
+  // were posted without a fix prompt, so there is nothing true to say here.
+  if (review.publishedAt === null || review.resolution === null || confirmed.length === 0) {
     return null;
   }
   const takenOver = review.resolution === "reviewer_takes_over";

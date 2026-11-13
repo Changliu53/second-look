@@ -346,6 +346,51 @@ describe("getEarlierDecisions", () => {
   });
 });
 
+describe("getEarlierDecisions over several rounds", () => {
+  it("remembers a rejection from round one in round three", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const publish = (reviewId: number) =>
+      claimReviewForPublish(db, reviewId, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+
+    // Round one: two findings, one confirmed, one rejected.
+    const one = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, one.review.id, completedResult(2));
+    const [kept, turnedDown] = (await getReviewDetail(db, one.review.id))!.findings;
+    await decideFinding(db, kept!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, turnedDown!.id, { status: "rejected", rejectionReason: "By design" }, "lee");
+    await publish(one.review.id);
+
+    // Round two: the rejected finding was not raised, so it has no row here.
+    const two = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-2" });
+    await completeReview(db, two.review.id, completedResult(1));
+    const [again] = (await getReviewDetail(db, two.review.id))!.findings;
+    await decideFinding(db, again!.id, { status: "confirmed" }, "lee");
+    await publish(two.review.id);
+
+    const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
+
+    // Verified against the latest round only...
+    expect(earlier?.headSha).toBe("sha-2");
+    expect(earlier?.confirmed.map((f) => f.id)).toEqual([again!.id]);
+    // ...but the round-one rejection is still known.
+    expect(earlier?.rejected.map((f) => f.rejectionReason)).toEqual(["By design"]);
+  });
+
+  it("lists a finding rejected in two rounds once", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    for (const sha of ["sha-1", "sha-2"]) {
+      const round = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: sha });
+      await completeReview(db, round.review.id, completedResult(1));
+      const [finding] = (await getReviewDetail(db, round.review.id))!.findings;
+      await decideFinding(db, finding!.id, { status: "rejected", rejectionReason: "No" }, "lee");
+      await claimReviewForPublish(db, round.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+    }
+
+    const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
+    expect(earlier?.rejected).toHaveLength(1);
+  });
+});
+
 describe("paste reviews", () => {
   it("logs token usage without a pull request and counts recent ones", async () => {
     await recordPasteReview(db, completedResult(1));

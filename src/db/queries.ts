@@ -298,17 +298,21 @@ export type EarlierDecisions = {
 };
 
 /**
- * The reviewer's decisions from the most recently published review of this
- * pull request at a different commit, or null if there is none. A new review
- * uses them to avoid repeating rejected findings and to say which confirmed
- * ones were fixed.
+ * The reviewer's decisions from earlier published reviews of this pull
+ * request at other commits, or null if there are none.
+ *
+ * - `confirmed` comes from the most recent of those reviews: it is the list
+ *   the author was last asked to fix, so it is what the new review verifies.
+ * - `rejected` comes from all of them. A finding the reviewer turned down in
+ *   round one must stay turned down in round three, even though round two
+ *   never raised it and so has no record of it.
  */
 export async function getEarlierDecisions(
   db: Database,
   pullRequestId: number,
   currentHeadSha: string,
 ): Promise<EarlierDecisions | null> {
-  const rows = await db
+  const published = await db
     .select()
     .from(reviews)
     .where(
@@ -318,22 +322,43 @@ export async function getEarlierDecisions(
         ne(reviews.headSha, currentHeadSha),
       ),
     )
-    .orderBy(desc(reviews.publishedAt))
-    .limit(1);
-  const previous = rows[0];
-  if (!previous) {
+    .orderBy(desc(reviews.publishedAt));
+  const latest = published[0];
+  if (!latest) {
     return null;
   }
+
   const decided = await db
     .select()
     .from(findings)
-    .where(eq(findings.reviewId, previous.id))
+    .where(
+      inArray(
+        findings.reviewId,
+        published.map((review) => review.id),
+      ),
+    )
     .orderBy(findings.id);
+
   return {
-    headSha: previous.headSha,
-    confirmed: decided.filter((finding) => finding.status === "confirmed"),
-    rejected: decided.filter((finding) => finding.status === "rejected"),
+    headSha: latest.headSha,
+    confirmed: decided.filter(
+      (finding) => finding.reviewId === latest.id && finding.status === "confirmed",
+    ),
+    rejected: uniqueByText(decided.filter((finding) => finding.status === "rejected")),
   };
+}
+
+/** Drops repeats of the same finding on the same file, keeping the first. */
+function uniqueByText(list: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  return list.filter((finding) => {
+    const key = `${finding.filePath}\n${finding.explanation}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 /** Logs a paste-mode review. Only token usage is kept, never the pasted code. */

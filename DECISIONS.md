@@ -173,3 +173,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What:** Finding text and the summary pass through `neutralizeForGithub`: `@name` becomes inline code and `![` is escaped. The reviewer's own note is posted as written.
 **Why:** The code under review shapes what the model writes, and GitHub acts on what is posted. A pull request could otherwise get the reviewer to notify users or teams, or to embed an image that loads from someone's server for every reader. A human confirms each finding, but a mention buried in a paragraph is easy to miss.
 **Rejected:** Asking the model not to write mentions. That is the same channel the attack uses.
+
+## 33. The diff size limit is 120,000 characters
+**What:** `MAX_DIFF_CHARS` defaults to 120,000 (about 30,000 tokens), up from 60,000.
+**Why:** The first limit was a guess. A feature pull request in this repository with 30 files and its tests came to 73,000 characters, and Second Look answered "too large, split it" to its own change. A limit that rejects ordinary pull requests trains people to ignore the message.
+**Rejected:** Removing the limit. One model call has to finish inside the function's time budget, and cost should have a ceiling.
+**Still missing:** Reviewing a large pull request in parts. Above the limit the answer is still "split it".

@@ -14,7 +14,7 @@ const positiveInt = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);
 
 const limitsSchema = z.object({
-  MAX_DIFF_CHARS: positiveInt(60_000),
+  MAX_DIFF_CHARS: positiveInt(120_000),
   MAX_CONTEXT_CHARS: positiveInt(120_000),
   PASTE_MAX_CHARS: positiveInt(20_000),
   PASTE_REQUESTS_PER_HOUR: positiveInt(20),

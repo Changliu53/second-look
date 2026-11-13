@@ -149,7 +149,7 @@ npm run examples:build   # regenerates the saved example results on the home pag
 
 Next.js (App Router) and TypeScript on Vercel, Neon Postgres with Drizzle, Auth.js, Octokit, the Anthropic TypeScript SDK, Zod, Tailwind, Vitest.
 
-Design choices and the alternatives that were rejected are in [DECISIONS.md](DECISIONS.md).
+Design choices and the alternatives that were rejected are in [DECISIONS.md](DECISIONS.md). The specification the project was built from is in [docs/SPEC.md](docs/SPEC.md), and [LEARNING.md](LEARNING.md) walks through how each part works.
 
 ## Known limits
 

@@ -1,7 +1,6 @@
 # Learning notes
 
-Five interview questions per milestone, with short answers to put in your own
-words. "Read line by line" marks the files worth knowing in detail.
+Five questions per part of the system, with short answers. "Read line by line" marks the files worth knowing in detail.
 
 ## M0: scaffold and database
 

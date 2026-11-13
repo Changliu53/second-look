@@ -1,8 +1,14 @@
-You are the lead engineer on a new project. I am Chang, the developer who owns it. I will review every piece of code you write, so optimize for code I can read, understand, and defend in an interview. Talk to me in Chinese; write all code, comments, commits, and docs in English.
+# Original specification
+
+The brief this project was built from, kept as written. The build ran as AI-assisted sessions working from this document; design choices made along the way are in [DECISIONS.md](../DECISIONS.md).
+
+---
+
+You are the lead engineer on a new project. I am Chang, the developer who owns it. I will review every piece of code you write, so optimize for code I can read and understand. Talk to me in Chinese; write all code, comments, commits, and docs in English.
 
 ## 0. Setup first
 1. Create the working folder: "/Users/changliu/personal projects/second-look" (note the space in the path; quote it in every shell command).
-2. Save this entire prompt into that folder as PROJECT_BRIEF.md before doing anything else.
+2. Save this entire prompt into that folder as PROJECT_BRIEF.md before doing anything else. (It now lives at docs/SPEC.md.)
 3. git init, create a private GitHub repo named second-look under my account, push early and often. Every milestone ends with a commit and push so nothing lives only on this machine.
 
 ## 1. Purpose
@@ -66,7 +72,7 @@ Create a folder eval/ with at least 8 small sample PRs (diff + expected findings
   M4 check runs, polish, README, demo PR
 - Steps that need me (creating the GitHub App, Neon project, Vercel project, Anthropic key, any login or payment page): give me exact click-by-click instructions, then wait. Do not guess credentials.
 - Keep DECISIONS.md: one short entry per real design choice (what, why, the alternative rejected).
-- Keep LEARNING.md: after each milestone, list 5 questions an interviewer could ask about that part, with short answers I should be able to give in my own words. Flag the parts most worth reading line by line.
+- Keep LEARNING.md: after each milestone, list 5 questions someone could ask about that part, with short answers I should be able to give in my own words. Flag the parts most worth reading line by line.
 - Small focused functions, clear names, no clever one-liners. Comment why, not what.
 - Do not write tests that only assert the mock you just wrote. Tests must be able to fail.
 - If something in this brief is wrong or a better approach exists, tell me before building it.

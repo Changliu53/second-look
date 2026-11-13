@@ -87,4 +87,4 @@ npm run db:migrate
 npm run dev
 ```
 
-The home page, live reviews of pasted code, and the dashboard work locally. For the dashboard login, add `http://localhost:3000/api/auth/callback/github` as a second callback URL on the GitHub App. Webhooks need a public URL; use the Vercel deployment, or a tunnel such as `npx smee-client`.
+The home page, live reviews of pasted code, and the dashboard work locally. The dashboard login works on localhost without extra setup: `npm run github-app:create` registers `http://localhost:3000/api/auth/callback/github` as a second callback URL. If you created the app by hand, add that URL yourself. Webhooks need a public URL; use the Vercel deployment, or a tunnel such as `npx smee-client`.

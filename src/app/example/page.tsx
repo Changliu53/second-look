@@ -1,13 +1,18 @@
 import Link from "next/link";
+import { z } from "zod";
 import { ReviewContent } from "@/components/review/review-content";
 import { SiteHeader } from "@/components/site-header";
 import { getDemoReview } from "@/dashboard/service";
 import { getDemoPullRequest } from "@/lib/env";
 import { dashboardDeps } from "../dashboard/deps";
 
-// The page is public and each render calls the GitHub API, so it is cached
-// and rebuilt at most once every five minutes however many people open it.
-export const revalidate = 300;
+// Reads ?round from the URL, so it is rendered per request. The GitHub diff
+// behind it is cached per commit, so repeat visits do not call GitHub.
+export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams: Promise<{ round?: string }>;
+};
 
 function NoDemo() {
   return (
@@ -25,9 +30,12 @@ function NoDemo() {
  * A public, read-only copy of the reviewer's page for one pull request, so
  * someone can see the product without installing the GitHub App.
  */
-export default async function ExamplePage() {
+export default async function ExamplePage({ searchParams }: PageProps) {
   const pull = getDemoPullRequest();
-  const loaded = pull ? await getDemoReview(pull, dashboardDeps()) : null;
+  const round = z.coerce.number().int().positive().safeParse((await searchParams).round);
+  const loaded = pull
+    ? await getDemoReview(pull, dashboardDeps(), round.success ? round.data : undefined)
+    : null;
 
   return (
     <>
@@ -39,9 +47,10 @@ export default async function ExamplePage() {
             <p className="font-semibold">A real pull request, after review</p>
             <p className="mt-1">
               This is the reviewer&apos;s page for a pull request that has been through the whole
-              flow. It is read-only because the review is already published: what you see here
-              matches what the author got on GitHub. Green-edged findings were confirmed and sent.
-              Greyed ones were rejected and the author never saw them.
+              flow, over several rounds: sent back to the author, partly fixed, taken over by the
+              reviewer, and passed. It is read-only because the reviews are published: what you
+              see matches what the author got on GitHub. Green-edged findings were confirmed and
+              sent. Greyed ones were rejected and the author never saw them.
             </p>
             <p className="mt-2">
               To confirm and reject findings yourself, use the{" "}
@@ -51,7 +60,13 @@ export default async function ExamplePage() {
               .
             </p>
           </div>
-            <ReviewContent detail={loaded.detail} diff={loaded.diff} locked />
+            <ReviewContent
+              detail={loaded.detail}
+              diff={loaded.diff}
+              locked
+              rounds={loaded.rounds}
+              roundHref={(_round, number) => `/example?round=${number}`}
+            />
           </>
         ) : (
           <NoDemo />

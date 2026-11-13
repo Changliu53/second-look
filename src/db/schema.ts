@@ -112,6 +112,8 @@ export const pullRequests = pgTable(
     title: text("title").notNull(),
     authorLogin: text("author_login").notNull(),
     headSha: text("head_sha").notNull(),
+    // The branch the PR targets. Needed to rebuild the diff of an older commit.
+    baseRef: text("base_ref"),
     // Set when the PR is closed or merged, cleared when it is reopened.
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -140,6 +142,10 @@ export const reviews = pgTable(
       { onDelete: "cascade" },
     ),
     headSha: text("head_sha"),
+    // The base branch's commit when this review ran. Comparing it with
+    // head_sha rebuilds the diff this review was written about, even after
+    // the pull request has been merged.
+    baseSha: text("base_sha"),
     status: reviewStatusEnum("status").notNull().default("running"),
     // What a running review is doing right now, shown live to the reviewer.
     stage: text("stage").$type<ReviewStage>(),

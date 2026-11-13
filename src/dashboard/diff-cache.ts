@@ -19,24 +19,59 @@ type Entry = { diff: string; expiresAt: number };
 
 const cache = new Map<string, Entry>();
 
-export async function getDiffCached(
+/** What is needed to find the diff a review was written about. */
+export type ReviewDiffTarget = {
+  pullNumber: number;
+  /** The commit the review is of. */
+  headSha: string | null;
+  /** The pull request's newest commit. */
+  currentHeadSha: string;
+  /**
+   * What to compare an older commit against: the base commit recorded when
+   * the review ran, or failing that the base branch's name.
+   */
+  base: string | null;
+};
+
+/**
+ * The diff for a review, or null when it cannot be rebuilt.
+ *
+ * - A review of the newest commit uses the pull request's own diff.
+ * - A review of an older commit compares that commit with its base. The
+ *   pull request's current diff would show code the findings were not
+ *   written about.
+ *
+ * Comparing against a branch name stops working once the pull request is
+ * merged: the old commit is then part of the branch, and the comparison is
+ * empty. An empty result is treated as "cannot rebuild" and is not cached.
+ */
+export async function getReviewDiff(
   github: GitHubClient,
   repo: RepoRef,
-  pullNumber: number,
-  headSha: string | null,
+  target: ReviewDiffTarget,
   now: number = Date.now(),
-): Promise<string> {
-  // Without a commit to key on, caching could serve a stale diff.
+): Promise<string | null> {
+  const { headSha } = target;
   if (headSha === null) {
-    return github.getPullRequestDiff(repo, pullNumber);
+    return null;
   }
-  const key = `${repo.owner}/${repo.name}#${pullNumber}@${headSha}`;
+  const isCurrent = headSha === target.currentHeadSha;
+  if (!isCurrent && target.base === null) {
+    return null;
+  }
+
+  const key = `${repo.owner}/${repo.name}#${target.pullNumber}@${headSha}`;
   const hit = cache.get(key);
   if (hit && hit.expiresAt > now) {
     return hit.diff;
   }
 
-  const diff = await github.getPullRequestDiff(repo, pullNumber);
+  const diff = isCurrent
+    ? await github.getPullRequestDiff(repo, target.pullNumber)
+    : await github.getDiffAtCommit(repo, target.base ?? "", headSha);
+  if (diff.trim() === "") {
+    return null;
+  }
   if (cache.size >= MAX_ENTRIES) {
     // Maps keep insertion order, so the first key is the oldest entry.
     const oldest = cache.keys().next().value;

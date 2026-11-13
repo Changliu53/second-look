@@ -17,7 +17,7 @@ import {
   publishReviewFor,
   type DashboardDeps,
 } from "@/dashboard/service";
-import { clearDiffCache, getDiffCached } from "@/dashboard/diff-cache";
+import { clearDiffCache, getReviewDiff } from "@/dashboard/diff-cache";
 import type { ReviewResult } from "@/review/engine";
 import { FakeGitHub } from "./helpers/fake-github";
 import { createTestDb, seedPullRequest } from "./helpers/test-db";
@@ -107,26 +107,47 @@ describe("access control", () => {
   });
 });
 
-describe("diff cache", () => {
-  it("asks GitHub for the diff once per commit, not once per page render", async () => {
-    clearDiffCache();
+describe("review diff", () => {
+  const repo = { owner: "acme", name: "shop" };
+  const current = { pullNumber: 7, headSha: "sha-2", currentHeadSha: "sha-2", base: "base-sha" };
+
+  it("asks GitHub once per commit, not once per page render", async () => {
     let calls = 0;
     const original = github.getPullRequestDiff.bind(github);
     github.getPullRequestDiff = async () => {
       calls += 1;
       return original();
     };
-    const repo = { owner: "acme", name: "shop" };
 
-    await getDiffCached(github, repo, 7, "sha-1");
-    await getDiffCached(github, repo, 7, "sha-1");
+    await getReviewDiff(github, repo, current);
+    await getReviewDiff(github, repo, current);
     expect(calls).toBe(1);
 
-    // A new commit, an expired entry, or an unknown commit all fetch again.
-    await getDiffCached(github, repo, 7, "sha-2");
-    await getDiffCached(github, repo, 7, "sha-1", Date.now() + 6 * 60 * 1000);
-    await getDiffCached(github, repo, 7, null);
-    expect(calls).toBe(4);
+    // An expired entry is fetched again.
+    await getReviewDiff(github, repo, current, Date.now() + 6 * 60 * 1000);
+    expect(calls).toBe(2);
+  });
+
+  it("rebuilds the diff of an older commit against its recorded base", async () => {
+    const diff = await getReviewDiff(github, repo, { ...current, headSha: "sha-1" });
+
+    expect(diff).toBe(DIFF);
+    expect(github.commitDiffRequests).toEqual([{ base: "base-sha", headSha: "sha-1" }]);
+  });
+
+  it("returns no diff for an older commit when its base is unknown", async () => {
+    expect(await getReviewDiff(github, repo, { ...current, headSha: "sha-1", base: null })).toBeNull();
+    expect(await getReviewDiff(github, repo, { ...current, headSha: null })).toBeNull();
+  });
+
+  it("treats an empty comparison as no diff and asks again next time", async () => {
+    // What GitHub returns for branch...oldCommit after the pull request merged.
+    github.commitDiff = "";
+    const older = { ...current, headSha: "sha-1" };
+
+    expect(await getReviewDiff(github, repo, older)).toBeNull();
+    github.commitDiff = DIFF;
+    expect(await getReviewDiff(github, repo, older)).toBe(DIFF);
   });
 });
 
@@ -307,8 +328,34 @@ describe("getDemoReview", () => {
     const demo = await getDemoReview(PULL, deps);
 
     expect(demo?.detail.review.id).toBe(reviewId);
+    expect(demo?.rounds).toHaveLength(1);
     expect(demo?.detail.findings.map((f) => f.status)).toEqual(["confirmed", "rejected"]);
     expect(demo?.diff).toContain("src/cart.ts");
+  });
+
+  it("can open an earlier round", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+    await publishReviewFor(reviewId, null, "lee", deps);
+    // A fix is pushed and its review published too.
+    await upsertPullRequest(db, { repositoryId, number: 7, title: "Add checkout", authorLogin: "sam", headSha: "sha-2" });
+    const second = await startGithubReview(db, { pullRequestId, headSha: "sha-2" });
+    await completeReview(db, second.review.id, { ...result(), findings: [] });
+    await publishReviewFor(second.review.id, null, "lee", deps);
+
+    const latest = await getDemoReview(PULL, deps);
+    const first = await getDemoReview(PULL, deps, 1);
+
+    expect(latest?.detail.review.id).toBe(second.review.id);
+    expect(latest?.diff).not.toBeNull();
+    expect(first?.detail.review.id).toBe(reviewId);
+    // Neither a base commit nor a base branch is recorded for the seeded
+    // pull request, so the older round is shown without a diff instead of
+    // with the wrong one.
+    expect(first?.diff).toBeNull();
+    expect(first?.rounds.map((r) => [r.confirmedCount, r.confirmedCriticalCount])).toEqual([[2, 1], [0, 0]]);
+    expect(await getDemoReview(PULL, deps, 9)).toBeNull();
   });
 
   it("does not return reviews of other pull requests", async () => {

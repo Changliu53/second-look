@@ -1,12 +1,13 @@
 import { SummaryCard } from "@/components/summary-card";
 import { LINK, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
-import type { ReviewDetail } from "@/db/queries";
+import type { ReviewDetail, ReviewRound } from "@/db/queries";
 import { parseUnifiedDiff } from "@/review/diff";
 import { getSkipReason } from "@/review/filters";
 import { DiffFile } from "./diff-file";
 import { FindingOutline } from "./finding-outline";
 import { FollowUpPanel } from "./follow-up-panel";
+import { RoundsStrip } from "./rounds-strip";
 import { FindingCard } from "./finding-card";
 
 /**
@@ -18,10 +19,14 @@ export function ReviewContent({
   detail,
   diff,
   locked,
+  rounds = [],
+  roundHref,
 }: {
   detail: ReviewDetail;
   diff: string | null;
   locked: boolean;
+  rounds?: ReviewRound[];
+  roundHref?: (round: ReviewRound, number: number) => string;
 }) {
   const { review, pullRequest, repository } = detail;
   const view = buildReviewView(diff === null ? [] : parseUnifiedDiff(diff), detail.findings);
@@ -40,6 +45,10 @@ export function ReviewContent({
         <span className="font-mono">{review.headSha?.slice(0, 7)}</span>
       </p>
 
+      {roundHref && (
+        <RoundsStrip rounds={rounds} currentReviewId={review.id} hrefFor={roundHref} />
+      )}
+
       {review.summary && (
         <div className="mt-6">
           <SummaryCard summary={review.summary} />
@@ -57,8 +66,8 @@ export function ReviewContent({
       )}
 
       {diff === null && (
-        <p className="mt-6 text-sm text-ink-soft">
-          The diff could not be loaded from GitHub. Findings are listed below without it.
+        <p className="mt-6 rounded-md border border-edge bg-surface-raised p-3 text-sm text-ink-soft">
+          The diff could not be loaded from GitHub. The findings are listed below without it.
         </p>
       )}
 

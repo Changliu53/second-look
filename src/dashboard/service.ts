@@ -5,7 +5,8 @@ import {
   decideFinding,
   editFinding,
   getFinding,
-  getLatestPublishedReview,
+  getPublishedReview,
+  listReviewRounds,
   getReviewDetail,
   listOpenReviews,
   listPublishedReviews,
@@ -14,6 +15,7 @@ import {
   type FindingDecision,
   type ReviewDetail,
   type ReviewListItem,
+  type ReviewRound,
 } from "@/db/queries";
 import { checkRunFor } from "@/github/check-run";
 import type { GitHubClient } from "@/github/client";
@@ -22,7 +24,7 @@ import type { PullRequestRef } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
 import { canReviewRepository } from "@/github/access";
-import { getDiffCached } from "./diff-cache";
+import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
 
 /**
  * Everything the dashboard can do, as plain functions. The Next.js pages and
@@ -98,6 +100,15 @@ async function visibleTo(
   return visible;
 }
 
+function diffTarget(detail: ReviewDetail): ReviewDiffTarget {
+  return {
+    pullNumber: detail.pullRequest.number,
+    headSha: detail.review.headSha,
+    currentHeadSha: detail.pullRequest.headSha,
+    base: detail.review.baseSha ?? detail.pullRequest.baseRef,
+  };
+}
+
 export async function listReviewsFor(login: string, deps: DashboardDeps): Promise<ReviewListItem[]> {
   return visibleTo(login, await listOpenReviews(deps.db), deps);
 }
@@ -115,48 +126,49 @@ export async function getReviewFor(
   reviewId: number,
   login: string,
   deps: DashboardDeps,
-): Promise<{ detail: ReviewDetail; diff: string | null } | null> {
+): Promise<{ detail: ReviewDetail; diff: string | null; rounds: ReviewRound[] } | null> {
   const loaded = await loadReviewFor(reviewId, login, deps);
   if (!loaded) {
     return null;
   }
-  // The diff is fetched from GitHub on every view instead of being stored.
-  // If GitHub is unreachable the findings are still shown, without the diff.
+  const { detail } = loaded;
+  const rounds = await listReviewRounds(deps.db, detail.pullRequest.id);
+
+  // The diff is fetched from GitHub instead of being stored. If GitHub is
+  // unreachable the findings are still shown, without the diff.
   let diff: string | null = null;
   try {
-    diff = await getDiffCached(
-      loaded.github,
-      loaded.detail.repository,
-      loaded.detail.pullRequest.number,
-      loaded.detail.review.headSha,
-    );
+    diff = await getReviewDiff(loaded.github, detail.repository, diffTarget(detail));
   } catch (error) {
     logEvent("dashboard_diff_fetch_failed", { reviewId, error: safeErrorCode(error) });
   }
-  return { detail: loaded.detail, diff };
+  return { detail, diff, rounds };
 }
 
 /**
- * Loads the published review of the configured demo pull request. No login is
- * needed: the PR is in a public repository and the review is already posted
- * there. Unpublished reviews are never returned.
+ * Loads a published review of the configured example pull request, with the
+ * list of all its rounds. No login is needed: the pull request is in a public
+ * repository and the reviews are already posted there. Unpublished reviews
+ * are never returned.
  */
 export async function getDemoReview(
   pull: PullRequestRef,
   deps: DashboardDeps,
-): Promise<{ detail: ReviewDetail; diff: string | null } | null> {
-  const detail = await getLatestPublishedReview(deps.db, pull);
+  round?: number,
+): Promise<{ detail: ReviewDetail; diff: string | null; rounds: ReviewRound[] } | null> {
+  const detail = await getPublishedReview(deps.db, pull, round);
   if (!detail) {
     return null;
   }
+  const rounds = await listReviewRounds(deps.db, detail.pullRequest.id);
   let diff: string | null = null;
   try {
     const github = await deps.githubFor(detail.repository.installationId);
-    diff = await github.getPullRequestDiff(detail.repository, pull.number);
+    diff = await getReviewDiff(github, detail.repository, diffTarget(detail));
   } catch (error) {
     logEvent("demo_diff_fetch_failed", { error: safeErrorCode(error) });
   }
-  return { detail, diff };
+  return { detail, diff, rounds };
 }
 
 function editableProblem(detail: ReviewDetail): ActionErrorCode | null {

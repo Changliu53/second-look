@@ -16,6 +16,9 @@ export class FakeGitHub implements GitHubClient {
   checkRunUpdates: Array<{ id: number; update: CheckRunUpdate }> = [];
   reviews: Array<{ pullNumber: number; payload: ReviewPayload }> = [];
   fileRequests: Array<{ path: string; ref: string }> = [];
+  commitDiffRequests: Array<{ base: string; headSha: string }> = [];
+  /** What getDiffAtCommit returns. Defaults to the pull request diff. */
+  commitDiff: string | null = null;
   failOn: "diff" | "createCheckRun" | "createReview" | null = null;
   /** When set, getPullRequestDiff throws this exact error. */
   diffError: Error | null = null;
@@ -32,6 +35,11 @@ export class FakeGitHub implements GitHubClient {
       throw Object.assign(new Error("boom"), { status: 500 });
     }
     return this.diff;
+  }
+
+  async getDiffAtCommit(_repo: RepoRef, base: string, headSha: string): Promise<string> {
+    this.commitDiffRequests.push({ base, headSha });
+    return this.commitDiff ?? this.diff;
   }
 
   async getFileContent(_repo: RepoRef, path: string, ref: string): Promise<string | null> {

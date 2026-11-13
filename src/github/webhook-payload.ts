@@ -10,7 +10,7 @@ export const pullRequestEventSchema = z.object({
     draft: z.boolean().optional(),
     user: z.object({ login: z.string() }),
     head: z.object({ sha: z.string() }),
-    base: z.object({ ref: z.string() }),
+    base: z.object({ ref: z.string(), sha: z.string().optional() }),
   }),
   repository: z.object({
     id: z.number().int(),

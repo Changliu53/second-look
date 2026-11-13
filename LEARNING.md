@@ -135,3 +135,22 @@ words. "Read line by line" marks the files worth knowing in detail.
 
 5. **How did you lower false positives, and how do you know it worked?**
    By writing down what a warning is: it has to go wrong in normal use. Hardening advice is left out or downgraded. On the eval, found stayed 12 of 12 and unplanted warnings went from 6 to 3. The limits: fourteen cases, one run each, and the rule was written after seeing the results. The real measure is how often reviewers reject findings on real pull requests, which the `findings` table already records.
+
+## Publish modes, fix prompts, and follow-up
+
+**Read line by line:** `src/review/fix-prompt.ts`, `src/github/publish.ts` (`buildReviewParts`), `src/github/review-pull-request.ts` (`toEarlierReview`, `toFollowUpEntries`), `src/db/queries.ts` (`getEarlierDecisions`)
+
+1. **Why does the fix prompt exist, and why is it not written by the model?**
+   The author cannot turn "line 37 skips the tenant filter" into a code change, but their AI tool can. The prompt is a precise spec: which file, which lines, what is wrong, what to do, and what not to touch. It is built by a template so it is free, predictable, and readable before sending.
+
+2. **What changes when the reviewer takes the pull request over?**
+   The author is told they do not need to act, and gets the findings as an explanation instead of a to-do list. The check still blocks while a critical finding stands, and says who is fixing it. The reviewer gets a checkout command and an engineer's version of the prompt: add a failing test per critical finding, one commit per problem.
+
+3. **A reviewer rejects a finding in round one. How is it kept from coming back in round three?**
+   Rejections are collected from every earlier published review of the pull request, not only the last. Round two never raised the finding, so it has no record of it; reading only round two would lose it. Second Look found this bug in its own pull request.
+
+4. **How does the tool decide a finding was fixed?**
+   It does not match lines. The earlier confirmed findings are given to the model with ids, and the model returns a verdict per id. The engine keeps one verdict per known id, drops ids the model invented, and marks any it skipped as "cannot tell".
+
+5. **The page shows a review of an old commit. Which diff does it show?**
+   Not the pull request's current diff, which has moved on. It asks GitHub to compare the base branch with that commit, which is what the pull request looked like then. That needed the base branch stored on the pull request.

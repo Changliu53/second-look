@@ -79,6 +79,7 @@ export async function upsertPullRequest(
     title: string;
     authorLogin: string;
     headSha: string;
+    baseRef?: string;
   },
 ): Promise<PullRequest> {
   const rows = await db
@@ -89,6 +90,7 @@ export async function upsertPullRequest(
       set: {
         title: input.title,
         headSha: input.headSha,
+        ...(input.baseRef === undefined ? {} : { baseRef: input.baseRef }),
         // Any event that reaches this point means the PR is open (again).
         closedAt: null,
         updatedAt: new Date(),
@@ -142,7 +144,7 @@ function isRetryable(review: Review, now: Date): boolean {
  */
 export async function startGithubReview(
   db: Database,
-  input: { pullRequestId: number; headSha: string },
+  input: { pullRequestId: number; headSha: string; baseSha?: string },
   now: Date = new Date(),
 ): Promise<{ review: Review; shouldRun: boolean }> {
   const inserted = await db
@@ -459,11 +461,18 @@ export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
   return withFindingCounts(db, rows);
 }
 
-/** The most recently published reviews, newest first. */
+/**
+ * Recently reviewed pull requests, newest first: one row per pull request,
+ * showing its latest published review. A pull request that went through
+ * three rounds is one line, not three.
+ */
 export async function listPublishedReviews(
   db: Database,
   limit: number,
 ): Promise<ReviewListItem[]> {
+  if (limit <= 0) {
+    return [];
+  }
   const rows = await db
     .select({
       review: reviews,
@@ -473,10 +482,72 @@ export async function listPublishedReviews(
     .from(reviews)
     .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
     .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
-    .where(isNotNull(reviews.publishedAt))
+    .where(
+      // Keep a review only if it is the newest published one of its pull
+      // request. Done in SQL so the database returns at most `limit` rows,
+      // however many pull requests have been reviewed.
+      sql`${reviews.publishedAt} = (
+        select max(newer.published_at)
+        from reviews newer
+        where newer.pull_request_id = ${reviews.pullRequestId}
+      )`,
+    )
     .orderBy(desc(reviews.publishedAt))
     .limit(limit);
   return withFindingCounts(db, rows);
+}
+
+/** One published review in the history of a pull request. */
+export type ReviewRound = {
+  reviewId: number;
+  headSha: string | null;
+  publishedAt: Date;
+  publishedBy: string | null;
+  resolution: Review["resolution"];
+  confirmedCount: number;
+  confirmedCriticalCount: number;
+};
+
+/** Every published review of a pull request, oldest first. */
+export async function listReviewRounds(
+  db: Database,
+  pullRequestId: number,
+): Promise<ReviewRound[]> {
+  const published = await db
+    .select()
+    .from(reviews)
+    .where(and(eq(reviews.pullRequestId, pullRequestId), isNotNull(reviews.publishedAt)))
+    .orderBy(reviews.publishedAt);
+  if (published.length === 0) {
+    return [];
+  }
+
+  const confirmed = await db
+    .select({ reviewId: findings.reviewId, severity: findings.severity })
+    .from(findings)
+    .where(
+      and(
+        inArray(
+          findings.reviewId,
+          published.map((review) => review.id),
+        ),
+        eq(findings.status, "confirmed"),
+      ),
+    );
+
+  return published.map((review) => {
+    const own = confirmed.filter((finding) => finding.reviewId === review.id);
+    return {
+      reviewId: review.id,
+      headSha: review.headSha,
+      // The query only returns published reviews, so this is never null.
+      publishedAt: review.publishedAt ?? review.createdAt,
+      publishedBy: review.publishedBy,
+      resolution: review.resolution,
+      confirmedCount: own.length,
+      confirmedCriticalCount: own.filter((finding) => finding.severity === "critical").length,
+    };
+  });
 }
 
 export type ReviewDetail = {
@@ -516,13 +587,15 @@ export async function getReviewDetail(
 }
 
 /**
- * The most recently published review of one pull request, for the public
- * demo page. Only published reviews are returned: nothing a reviewer has not
- * already released to the PR can be shown this way.
+ * A published review of one pull request, for the public example page.
+ * `round` counts published reviews from 1 (the first); without it the latest
+ * is returned. Only published reviews can be reached this way: nothing a
+ * reviewer has not already released to the pull request is shown.
  */
-export async function getLatestPublishedReview(
+export async function getPublishedReview(
   db: Database,
   pull: { owner: string; name: string; number: number },
+  round?: number,
 ): Promise<ReviewDetail | null> {
   const rows = await db
     .select({ id: reviews.id })
@@ -537,10 +610,9 @@ export async function getLatestPublishedReview(
         isNotNull(reviews.publishedAt),
       ),
     )
-    .orderBy(desc(reviews.publishedAt))
-    .limit(1);
+    .orderBy(reviews.publishedAt);
 
-  const row = rows[0];
+  const row = round === undefined ? rows.at(-1) : rows[round - 1];
   return row ? getReviewDetail(db, row.id) : null;
 }
 

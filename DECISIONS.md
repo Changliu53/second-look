@@ -285,3 +285,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** The only way to retry was to close and reopen the pull request, which notifies everyone watching it and is not something a reviewer should have to do to the author's pull request.
 **Rules:** Only failed or stuck reviews, so a finished review is never paid for twice by a stray click. Only for reviewers with write access, the same check as every other action. Not for a closed pull request. The run goes through the same claim as a webhook, so a webhook and a click for the same commit cannot both run.
 
+## 54. Access answers are remembered for a minute
+**What:** The dashboard keeps GitHub's answer to "does this login have write access to this repository" for sixty seconds, per server instance. The webhook's check on the pull request's author is not cached; it runs once per push.
+**Why:** Every page and every Confirm or Reject asked GitHub. With a few hundred reviewers that is a steady drain on the installation's rate limit (5,000 requests an hour for most installations), and each click waited on a round trip to GitHub.
+**Cost:** Someone removed from a repository can keep using its reviews for up to a minute, and someone just added waits up to a minute. Both are acceptable for a review tool; neither would be for a payment system.
+**Rejected:** A shared cache such as Redis, so that every instance agrees. A cold instance asking GitHub once more is cheaper than a new service.
+

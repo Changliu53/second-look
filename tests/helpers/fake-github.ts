@@ -83,7 +83,11 @@ export class FakeGitHub implements GitHubClient {
     return 7000 + this.reviews.length;
   }
 
+  /** How many times getPermission was called. */
+  permissionRequests = 0;
+
   async getPermission(_repo: RepoRef, username: string): Promise<string> {
+    this.permissionRequests += 1;
     return this.permissions.get(username) ?? "none";
   }
 

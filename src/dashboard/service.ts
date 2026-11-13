@@ -27,13 +27,13 @@ import {
 import type { Repository, Review } from "@/db/schema";
 import type { PullRequestEvent } from "@/github/webhook-payload";
 import { checkRunFor } from "@/github/check-run";
-import type { GitHubClient } from "@/github/client";
+import type { GitHubClient, RepoRef } from "@/github/client";
 import { buildReviewPayload, type Resolution } from "@/github/publish";
 import type { PullRequestRef } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
 import { CATEGORIES, SEVERITIES } from "@/review/schema";
-import { canReviewRepository } from "@/github/access";
+import { canReviewRepository, PermissionCache } from "@/github/access";
 import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
 import { summarizeDecisions, type DecidedFinding, type Insights } from "./insights";
 
@@ -47,7 +47,16 @@ export type DashboardDeps = {
   db: Database;
   /** Returns a client for the GitHub App installation that owns a repo. */
   githubFor: (installationId: number) => Promise<GitHubClient>;
+  /** Remembers access answers for a while. Without it, GitHub is asked every time. */
+  permissions?: PermissionCache;
 };
+
+/** Whether `login` may review `repo`: write access, asked of GitHub or the cache. */
+function mayReview(deps: DashboardDeps, github: GitHubClient, repo: RepoRef, login: string): Promise<boolean> {
+  return deps.permissions
+    ? deps.permissions.canReview(github, repo, login)
+    : canReviewRepository(github, repo, login);
+}
 
 /**
  * Why an action was refused. The code, not the sentence, travels in the URL
@@ -93,7 +102,7 @@ async function loadReviewFor(
     return null;
   }
   const github = await deps.githubFor(detail.repository.installationId);
-  const allowed = await canReviewRepository(github, detail.repository, login);
+  const allowed = await mayReview(deps, github, detail.repository, login);
   // A user without access gets the same answer as for a missing review, so
   // the dashboard does not reveal which review ids exist.
   return allowed ? { detail, github } : null;
@@ -113,7 +122,7 @@ async function visibleTo(
     let allowed = allowedByRepo.get(item.repository.id);
     if (allowed === undefined) {
       const github = await deps.githubFor(item.repository.installationId);
-      allowed = await canReviewRepository(github, item.repository, login);
+      allowed = await mayReview(deps, github, item.repository, login);
       allowedByRepo.set(item.repository.id, allowed);
     }
     if (allowed) {
@@ -487,7 +496,7 @@ export async function getInsightsFor(login: string, deps: DashboardDeps): Promis
   const visible: Repository[] = [];
   for (const repository of await listRepositories(deps.db)) {
     const github = await deps.githubFor(repository.installationId);
-    if (await canReviewRepository(github, repository, login)) {
+    if (await mayReview(deps, github, repository, login)) {
       visible.push(repository);
     }
   }

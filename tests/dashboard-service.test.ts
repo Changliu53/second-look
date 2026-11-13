@@ -276,6 +276,22 @@ describe("getInsightsFor", () => {
     expect(outsider.insights.decided).toBe(0);
     expect(outsider.repositories).toEqual([]);
   });
+
+  it("counts only reviews published inside the period", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+    await publishReviewFor(reviewId, null, "lee", deps);
+    const inAYear = new Date(Date.now() + 365 * 86_400_000);
+
+    const recent = await getInsightsFor("lee", deps, 30);
+    const later = await getInsightsFor("lee", deps, 30, inAYear);
+    const allTime = await getInsightsFor("lee", deps, null, inAYear);
+
+    expect(recent.insights.decided).toBe(2);
+    expect(later.insights.decided).toBe(0);
+    expect(allTime.insights.decided).toBe(2);
+  });
 });
 
 describe("deciding the last pending finding", () => {

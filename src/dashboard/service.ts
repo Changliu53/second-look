@@ -512,7 +512,17 @@ export type InsightsView = {
  * review. The same access rule as everywhere else: write access, asked of
  * GitHub, one lookup per repository.
  */
-export async function getInsightsFor(login: string, deps: DashboardDeps): Promise<InsightsView> {
+/** The periods the insights page offers, in days. Null is "all time". */
+export const INSIGHT_PERIODS = [30, 90, null] as const;
+export type InsightPeriod = (typeof INSIGHT_PERIODS)[number];
+
+export async function getInsightsFor(
+  login: string,
+  deps: DashboardDeps,
+  period: InsightPeriod = 90,
+  now: Date = new Date(),
+): Promise<InsightsView> {
+  const since = period === null ? null : new Date(now.getTime() - period * 86_400_000);
   const visible: Repository[] = [];
   for (const repository of await listRepositories(deps.db)) {
     const github = await deps.githubFor(repository.installationId);
@@ -522,8 +532,8 @@ export async function getInsightsFor(login: string, deps: DashboardDeps): Promis
   }
   const ids = visible.map((repository) => repository.id);
   const [rows, published] = await Promise.all([
-    listPublishedFindings(deps.db, ids),
-    listPublishedFollowUps(deps.db, ids),
+    listPublishedFindings(deps.db, ids, since),
+    listPublishedFollowUps(deps.db, ids, since),
   ]);
   const decided: DecidedFinding[] = rows.flatMap((row) =>
     // The query leaves out pending findings; this narrows the type to match.

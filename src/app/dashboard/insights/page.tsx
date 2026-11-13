@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { LINK, SECTION_LABEL } from "@/components/ui";
 import { suggestRules, type Tally } from "@/dashboard/insights";
 import { CopyButton } from "@/components/copy-button";
-import { getInsightsFor } from "@/dashboard/service";
+import { getInsightsFor, INSIGHT_PERIODS, type InsightPeriod } from "@/dashboard/service";
 import { dashboardDeps } from "../deps";
 
 export const dynamic = "force-dynamic";
@@ -132,12 +132,45 @@ function RuleSuggestions({ rules }: { rules: ReturnType<typeof suggestRules> }) 
  * What reviewers did with the first pass's findings, across the repositories
  * the signed-in user may review. Read from stored decisions; no model call.
  */
-export default async function InsightsPage() {
+type PageProps = { searchParams: Promise<{ days?: string }> };
+
+/** Reads ?days=30, 90 or all. Anything else is the default, 90. */
+function readPeriod(value: string | undefined): InsightPeriod {
+  if (value === "all") return null;
+  if (value === "30") return 30;
+  return 90;
+}
+
+function periodLabel(period: InsightPeriod): string {
+  return period === null ? "All time" : `Last ${period} days`;
+}
+
+function PeriodPicker({ current }: { current: InsightPeriod }) {
+  const chip =
+    "rounded-full border border-edge px-2.5 py-0.5 text-xs text-ink-soft transition hover:border-slate-400 aria-[current]:border-accent aria-[current]:bg-accent-soft aria-[current]:text-ink";
+  return (
+    <nav aria-label="Period" className="flex flex-wrap gap-1.5">
+      {INSIGHT_PERIODS.map((period) => (
+        <Link
+          key={String(period)}
+          href={`/dashboard/insights?days=${period ?? "all"}`}
+          aria-current={period === current ? "true" : undefined}
+          className={chip}
+        >
+          {periodLabel(period)}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+export default async function InsightsPage({ searchParams }: PageProps) {
   const login = await getSignedInLogin();
   if (!login) {
     redirect("/dashboard");
   }
-  const { insights, repositories, publishedReviews } = await getInsightsFor(login, dashboardDeps());
+  const period = readPeriod((await searchParams).days);
+  const { insights, repositories, publishedReviews } = await getInsightsFor(login, dashboardDeps(), period);
   const followUpTotal =
     insights.followUp.fixed + insights.followUp.stillPresent + insights.followUp.unclear;
 
@@ -154,17 +187,23 @@ export default async function InsightsPage() {
           <span className="mx-2 text-ink-soft">/</span>
           <span className="text-ink-soft">First pass quality</span>
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">How the first pass is doing</h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">How the first pass is doing</h1>
+          <PeriodPicker current={period} />
+        </div>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
           Every Confirm and Reject is a reviewer saying whether a finding was worth sending. This
-          page adds them up over {plural(publishedReviews, "published review")}
+          page adds them up over {plural(publishedReviews, "review")} published{" "}
+          {period === null ? "so far" : `in the last ${period} days`}
           {repositories.length > 0 && <> on {repositories.join(", ")}</>}. A low share in one row
           is a place to tighten the team rules in <code className="font-mono text-xs">.second-look.md</code>.
         </p>
 
         {insights.decided === 0 ? (
           <p className="mt-6 rounded-lg border border-dashed border-edge p-6 text-sm text-ink-soft">
-            Nothing to add up yet. The numbers appear after the first review is published.
+            {period === null
+              ? "Nothing to add up yet. The numbers appear after the first review is published."
+              : `No review was published in the last ${period} days.`}
           </p>
         ) : (
           <>

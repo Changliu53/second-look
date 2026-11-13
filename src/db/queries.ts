@@ -908,7 +908,11 @@ export async function listRepositories(db: Database): Promise<Repository[]> {
  * insights page. Unpublished reviews are left out: a decision can still
  * change until the review is published.
  */
-export async function listPublishedFindings(db: Database, repositoryIds: number[]) {
+export async function listPublishedFindings(
+  db: Database,
+  repositoryIds: number[],
+  since: Date | null = null,
+) {
   if (repositoryIds.length === 0) {
     return [];
   }
@@ -927,6 +931,7 @@ export async function listPublishedFindings(db: Database, repositoryIds: number[
     .where(
       and(
         isNotNull(reviews.publishedAt),
+        since ? gte(reviews.publishedAt, since) : undefined,
         ne(findings.status, "pending"),
         inArray(pullRequests.repositoryId, repositoryIds),
       ),
@@ -934,7 +939,11 @@ export async function listPublishedFindings(db: Database, repositoryIds: number[
 }
 
 /** How many reviews have been published in the given repositories, and their follow-up verdicts. */
-export async function listPublishedFollowUps(db: Database, repositoryIds: number[]) {
+export async function listPublishedFollowUps(
+  db: Database,
+  repositoryIds: number[],
+  since: Date | null = null,
+) {
   if (repositoryIds.length === 0) {
     return [];
   }
@@ -946,6 +955,12 @@ export async function listPublishedFollowUps(db: Database, repositoryIds: number
     })
     .from(reviews)
     .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
-    .where(and(isNotNull(reviews.publishedAt), inArray(pullRequests.repositoryId, repositoryIds)));
+    .where(
+      and(
+        isNotNull(reviews.publishedAt),
+        since ? gte(reviews.publishedAt, since) : undefined,
+        inArray(pullRequests.repositoryId, repositoryIds),
+      ),
+    );
 }
 

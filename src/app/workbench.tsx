@@ -324,7 +324,10 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
 
         <footer className="mt-auto pt-2 text-xs leading-relaxed text-ink-soft">
           Pasted code is sent to the model for one review and is not stored. Live reviews are rate
-          limited. Nothing you confirm or reject here is saved or posted anywhere.
+          limited. Nothing you confirm or reject here is saved or posted anywhere.{" "}
+          <Link href="/data" className="underline underline-offset-2 hover:text-ink">
+            What is stored and sent
+          </Link>
         </footer>
       </aside>
 

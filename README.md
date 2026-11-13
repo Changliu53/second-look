@@ -74,6 +74,8 @@ A repository can add its own rules in `.second-look.md` (see [the one in this re
 
 ## Safety and cost guards
 
+What is sent to the model and what is kept is listed in plain words at [/data](https://second-look-review.vercel.app/data).
+
 - Code under review is treated as data. It is wrapped in tags with a random per-request name, so a comment like "ignore previous instructions" cannot pose as an instruction. See `src/review/prompt.ts`.
 - Model output is validated with Zod. Free text is never parsed.
 - Every webhook signature is verified.

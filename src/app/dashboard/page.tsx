@@ -54,6 +54,10 @@ function SignedOut() {
           <Link className={LINK} href="/">
             try the playground
           </Link>
+          . Before installing it on your code, read{" "}
+          <Link className={LINK} href="/data">
+            what it stores and sends
+          </Link>
           .
         </p>
       </main>

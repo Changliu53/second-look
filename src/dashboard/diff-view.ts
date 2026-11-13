@@ -54,3 +54,39 @@ export function buildReviewView(files: FileDiff[], findings: Finding[]): ReviewV
 
   return { files: fileViews, unplaced };
 }
+
+/** Lines added and removed in a file, and how many findings sit in it. */
+export function fileStats(file: FileView): { added: number; removed: number; findings: number } {
+  let added = 0;
+  let removed = 0;
+  let findings = 0;
+  for (const row of file.rows) {
+    if (row.kind === "line") {
+      if (row.line.kind === "add") added += 1;
+      if (row.line.kind === "del") removed += 1;
+      findings += row.findings.length;
+    }
+  }
+  return { added, removed, findings };
+}
+
+// Above this many diff lines, files without findings start folded.
+export const FOLD_QUIET_FILES_AT = 400;
+
+/**
+ * In a long diff, a reviewer's time goes to the files with findings first.
+ * Files without any start folded, with their size on the folded line, so the
+ * page is a list of what needs a decision rather than a wall of code. A short
+ * diff is shown whole: folding three files hides more than it saves.
+ */
+export function shouldFoldQuietFiles(view: ReviewView): boolean {
+  if (view.files.length < 2) {
+    return false;
+  }
+  const lines = view.files.reduce(
+    (total, file) => total + file.rows.filter((row) => row.kind === "line").length,
+    0,
+  );
+  return lines > FOLD_QUIET_FILES_AT;
+}
+

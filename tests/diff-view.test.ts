@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReviewView } from "@/dashboard/diff-view";
+import { buildReviewView, fileStats, FOLD_QUIET_FILES_AT, shouldFoldQuietFiles } from "@/dashboard/diff-view";
 import type { Finding } from "@/db/schema";
 import { parseUnifiedDiff } from "@/review/diff";
 
@@ -68,3 +68,28 @@ describe("buildReviewView", () => {
     expect(view.files[0]?.rows[0]).toEqual({ kind: "hunk", header: "@@ -10,3 +10,4 @@" });
   });
 });
+
+describe("folding quiet files in a long diff", () => {
+  const longFile = (path: string, lines: number) =>
+    `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1,1 +1,${lines} @@\n-old\n` +
+    Array.from({ length: lines }, (_, i) => `+line ${i}`).join("\n") +
+    "\n";
+
+  it("counts added and removed lines and the findings in a file", () => {
+    const view = buildReviewView(parseUnifiedDiff(longFile("a.ts", 3)), []);
+    expect(fileStats(view.files[0]!)).toEqual({ added: 3, removed: 1, findings: 0 });
+  });
+
+  it("folds only when the diff is long and has more than one file", () => {
+    const short = buildReviewView(parseUnifiedDiff(longFile("a.ts", 10) + longFile("b.ts", 10)), []);
+    const oneLongFile = buildReviewView(parseUnifiedDiff(longFile("a.ts", FOLD_QUIET_FILES_AT + 50)), []);
+    const long = buildReviewView(
+      parseUnifiedDiff(longFile("a.ts", FOLD_QUIET_FILES_AT) + longFile("b.ts", 10)),
+      [],
+    );
+    expect(shouldFoldQuietFiles(short)).toBe(false);
+    expect(shouldFoldQuietFiles(oneLongFile)).toBe(false);
+    expect(shouldFoldQuietFiles(long)).toBe(true);
+  });
+});
+

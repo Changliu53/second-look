@@ -102,6 +102,7 @@ export function DiffFile({
   plain = false,
   title,
   skippedAs,
+  foldedNote,
   slots = {},
 }: {
   file: FileView;
@@ -110,16 +111,20 @@ export function DiffFile({
   title?: string;
   /** Set for files the AI did not review, which start folded away. */
   skippedAs?: string;
+  /**
+   * Set to start a reviewed file folded, with this note on its folded line.
+   * Used for files without findings in a long diff.
+   */
+  foldedNote?: string;
   slots?: LineSlots;
 }) {
-  if (skippedAs) {
+  const foldNote = skippedAs ? `${skippedAs} file, not reviewed. Click to show.` : foldedNote;
+  if (foldNote) {
     return (
       <details className="mt-5 overflow-hidden rounded-lg border border-edge bg-surface-raised">
-        <summary className="flex cursor-pointer items-center gap-2 bg-slate-50 px-3 py-2 font-mono text-xs">
+        <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 bg-slate-50 px-3 py-2 font-mono text-xs">
           <span className="break-all">{file.path}</span>
-          <span className="font-sans text-ink-soft">
-            {skippedAs} file, not reviewed. Click to show.
-          </span>
+          <span className="font-sans text-ink-soft">{foldNote}</span>
         </summary>
         <div className="border-t border-edge font-mono text-xs leading-5">
           {file.rows.map((row, index) => (

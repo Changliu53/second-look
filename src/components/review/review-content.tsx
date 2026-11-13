@@ -2,7 +2,7 @@ import Link from "next/link";
 import { addFindingAction } from "@/app/dashboard/actions";
 import { SummaryCard } from "@/components/summary-card";
 import { BUTTON_PRIMARY, KBD, LINK, SECTION_LABEL } from "@/components/ui";
-import { buildReviewView } from "@/dashboard/diff-view";
+import { buildReviewView, fileStats, shouldFoldQuietFiles } from "@/dashboard/diff-view";
 import type { ReviewDetail, ReviewRound } from "@/db/queries";
 import { parseUnifiedDiff } from "@/review/diff";
 import { getSkipReason } from "@/review/filters";
@@ -65,6 +65,16 @@ export function ReviewContent({
 }) {
   const { review, pullRequest, repository } = detail;
   const view = buildReviewView(diff === null ? [] : parseUnifiedDiff(diff), detail.findings);
+  const foldQuiet = shouldFoldQuietFiles(view);
+
+  /** The folded line for a file without findings in a long diff, or undefined. */
+  function quietNote(file: (typeof view.files)[number]): string | undefined {
+    if (!foldQuiet || compose?.path === file.path) {
+      return undefined;
+    }
+    const stats = fileStats(file);
+    return stats.findings > 0 ? undefined : `+${stats.added} −${stats.removed}, no findings. Click to show.`;
+  }
 
   return (
     <>
@@ -115,11 +125,20 @@ export function ReviewContent({
         </p>
       )}
 
+      {foldQuiet && (
+        <p className="mt-4 text-xs text-ink-soft">
+          This is a long diff, so the{" "}
+          {view.files.filter((file) => fileStats(file).findings === 0).length} files without findings
+          are folded. Open any of them to read it or add a finding of your own.
+        </p>
+      )}
+
       {view.files.map((file) => (
         <DiffFile
           key={file.path}
           file={file}
           skippedAs={getSkipReason(file.path, false) ?? undefined}
+          foldedNote={quietNote(file)}
           renderFinding={(finding) => <FindingCard finding={finding} locked={locked} />}
           slots={
             locked

@@ -41,6 +41,7 @@ import { canReviewRepository, PermissionCache } from "@/github/access";
 import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
 import { summarizeDecisions, type DecidedFinding, type Insights } from "./insights";
 import { toCsv } from "@/lib/csv";
+import { mapLimit } from "@/lib/map-limit";
 import { BULK_NIT_REASON, pendingNits } from "@/sandbox/model";
 
 /**
@@ -121,21 +122,27 @@ async function visibleTo(
   deps: DashboardDeps,
 ): Promise<ReviewListItem[]> {
   // One permission lookup per repository, however many reviews it has.
-  const allowedByRepo = new Map<number, boolean>();
-  const visible: ReviewListItem[] = [];
+  const repositories = [...new Map(items.map((item) => [item.repository.id, item.repository])).values()];
+  const allowed = new Set(
+    (await allowedRepositories(login, repositories, deps)).map((repository) => repository.id),
+  );
+  return items.filter((item) => allowed.has(item.repository.id));
+}
 
-  for (const item of items) {
-    let allowed = allowedByRepo.get(item.repository.id);
-    if (allowed === undefined) {
-      const github = await deps.githubFor(item.repository.installationId);
-      allowed = await mayReview(deps, github, item.repository, login);
-      allowedByRepo.set(item.repository.id, allowed);
-    }
-    if (allowed) {
-      visible.push(item);
-    }
-  }
-  return visible;
+// Permission lookups in flight at once, per page.
+const ACCESS_CHECKS_AT_ONCE = 6;
+
+/** The repositories, of these, that `login` may review. Keeps their order. */
+async function allowedRepositories(
+  login: string,
+  repositories: Repository[],
+  deps: DashboardDeps,
+): Promise<Repository[]> {
+  const answers = await mapLimit(repositories, ACCESS_CHECKS_AT_ONCE, async (repository) => {
+    const github = await deps.githubFor(repository.installationId);
+    return mayReview(deps, github, repository, login);
+  });
+  return repositories.filter((_, index) => answers[index]);
 }
 
 function diffTarget(detail: ReviewDetail): ReviewDiffTarget {
@@ -547,14 +554,7 @@ export type InsightPeriod = (typeof INSIGHT_PERIODS)[number];
 
 /** The repositories this user may review, one access check per repository. */
 async function reviewableRepositories(login: string, deps: DashboardDeps): Promise<Repository[]> {
-  const visible: Repository[] = [];
-  for (const repository of await listRepositories(deps.db)) {
-    const github = await deps.githubFor(repository.installationId);
-    if (await mayReview(deps, github, repository, login)) {
-      visible.push(repository);
-    }
-  }
-  return visible;
+  return allowedRepositories(login, await listRepositories(deps.db), deps);
 }
 
 function periodStart(period: InsightPeriod, now: Date): Date | null {

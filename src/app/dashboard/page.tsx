@@ -7,6 +7,7 @@ import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
 import { listPublishedReviewsFor, listReviewsFor } from "@/dashboard/service";
 import { isStaleRunning, type ReviewListItem } from "@/db/queries";
 import { ago } from "@/lib/time";
+import { BUDGET_REACHED } from "@/github/review-pull-request";
 import { signInAction, signOutAction } from "./actions";
 import { dashboardDeps } from "./deps";
 
@@ -104,7 +105,9 @@ function OpenRow({ item, login }: { item: ReviewListItem; login: string }) {
           <span aria-hidden className={`size-2 rounded-full ${stale ? "bg-red-600" : STATUS_DOT[review.status]}`} />
           {stale
             ? "Review did not finish"
-            : review.status === "running"
+            : review.status === "failed" && review.errorMessage === BUDGET_REACHED
+              ? "Skipped: monthly budget used up"
+              : review.status === "running"
               ? `AI: ${stageLabel(review.stage).toLowerCase()}`
               : STATUS_LABELS[review.status]}
         </span>

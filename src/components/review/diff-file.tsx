@@ -22,6 +22,25 @@ type RenderFinding = (finding: Finding) => React.ReactNode;
  * number (with a link or a button), and `afterLine` puts something under a
  * line, which is where the form for a new finding opens.
  */
+/**
+ * What goes in the gutter of a line that can take a new finding: a "+" that
+ * appears when the line is hovered or focused, then the line number. The
+ * caller wraps it in a link or a button.
+ */
+export function AddOnLine({ line }: { line: number }) {
+  return (
+    <span className="flex items-center justify-end gap-1.5">
+      <span
+        aria-hidden
+        className="grid size-4 place-items-center rounded bg-accent text-[0.6875rem] font-bold leading-none text-white opacity-0 group-hover/line:opacity-100 group-focus-within/line:opacity-100"
+      >
+        +
+      </span>
+      {line}
+    </span>
+  );
+}
+
 export type LineSlots = {
   lineNumber?: (newLine: number) => React.ReactNode;
   afterLine?: (newLine: number) => React.ReactNode;
@@ -46,8 +65,8 @@ function Row({
   const { line, findings } = row;
   return (
     <>
-      <div className={`flex ${plain ? "" : LINE_STYLES[line.kind]}`}>
-        <span className="w-12 shrink-0 select-none pr-3 text-right text-slate-400">
+      <div className={`group/line flex ${plain ? "" : LINE_STYLES[line.kind]}`}>
+        <span className={`${slots.lineNumber ? "w-16" : "w-12"} shrink-0 select-none pr-3 text-right text-slate-400`}>
           {line.newLine === null ? "" : (slots.lineNumber?.(line.newLine) ?? line.newLine)}
         </span>
         {!plain && (

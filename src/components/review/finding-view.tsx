@@ -107,6 +107,91 @@ export function FindingText({ finding }: { finding: Finding }) {
   );
 }
 
+const DECIDED_MARK: Record<"confirmed" | "rejected" | "human", { mark: string; label: string; className: string }> = {
+  confirmed: { mark: "✓", label: "Confirmed", className: "text-green-700" },
+  rejected: { mark: "✕", label: "Rejected", className: "text-ink-soft" },
+  human: { mark: "✎", label: "Yours", className: "text-green-700" },
+};
+
+/**
+ * The whole card for a finding: header, text, and whatever controls the
+ * caller passes as children.
+ *
+ * A pending finding is shown in full, because it needs a decision. Once it is
+ * decided it folds to one line, so a long review shrinks as the reviewer
+ * works through it and what is left to do stands out. Opening the line shows
+ * everything again, including the controls to change the decision.
+ *
+ * `followUp` is shown under the folded line and hidden once the card is
+ * opened. It is for the one question worth asking right after a decision
+ * (why was this rejected?) without making the reviewer open the card.
+ *
+ * Folding is for someone working through a review. A published review is
+ * read, not worked through, so there `fold` is false and every finding is
+ * shown in full.
+ */
+export function FindingShell({
+  finding,
+  fold = true,
+  followUp,
+  children,
+}: {
+  finding: Finding;
+  fold?: boolean;
+  followUp?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  if (finding.status === "pending" || !fold) {
+    return (
+      <FindingFrame finding={finding}>
+        <FindingHeader finding={finding} />
+        <FindingText finding={finding} />
+        {children}
+      </FindingFrame>
+    );
+  }
+
+  const decided = DECIDED_MARK[finding.source === "human" ? "human" : finding.status];
+  return (
+    <FindingFrame finding={finding}>
+      <details data-collapsible className="peer group/fold">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm">
+          <span className={`w-24 shrink-0 text-xs font-semibold ${decided.className}`}>
+            {decided.mark} {decided.label}
+          </span>
+          <SeverityBadge severity={finding.severity} />
+          <span className={`min-w-0 flex-1 truncate ${finding.status === "rejected" ? "text-ink-soft line-through" : ""}`}>
+            <InlineText text={publishedText(finding).explanation} />
+          </span>
+          {finding.status === "rejected" && finding.rejectionReason && (
+            <span
+              className="hidden max-w-56 shrink-0 truncate rounded-full bg-slate-100 px-2 py-0.5 text-xs text-ink-soft sm:inline"
+              title={`Why rejected: ${finding.rejectionReason}`}
+            >
+              {finding.rejectionReason}
+            </span>
+          )}
+          <span className="shrink-0 text-xs text-accent group-open/fold:hidden">Open</span>
+          <span className="hidden shrink-0 text-xs text-accent group-open/fold:inline">Close</span>
+        </summary>
+        <div className="mt-3 border-t border-edge pt-3">
+          <FindingHeader finding={finding} />
+          <FindingText finding={finding} />
+          {children}
+        </div>
+      </details>
+      {followUp && <div className="mt-2 peer-open:hidden">{followUp}</div>}
+    </FindingFrame>
+  );
+}
+
+/** A suggested rejection reason, one click to choose. */
+export const REASON_CHIP =
+  "rounded-full border border-edge px-2 py-0.5 text-xs text-ink-soft transition hover:border-slate-400 hover:text-ink aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-ink";
+
+/** Asked right after a rejection. The answer is optional. */
+export const REASON_QUESTION = "Why? (optional)";
+
 /** Reasons a reviewer rejects a finding most often, offered as suggestions. */
 export const COMMON_REJECT_REASONS = [
   "Not a real problem here",

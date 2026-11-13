@@ -10,6 +10,9 @@ import { KBD } from "@/components/ui";
  *   j / k   next / previous finding      n   next pending finding
  *   c       confirm                       r   reject      e   edit      u   undo
  *
+ * and, while typing in a finding's form: Cmd+Enter (Ctrl+Enter) saves it, and
+ * Esc closes the form for a new finding.
+ *
  * It works on the DOM, not on component state: findings are marked with
  * data-finding and their controls with data-action. That lets the same
  * shortcuts drive the dashboard (server-action forms) and the home page
@@ -41,10 +44,26 @@ function press(card: HTMLElement, action: string): void {
     return;
   }
   if (control instanceof HTMLDetailsElement) {
+    // The control may sit inside a folded card; unfold that first.
+    const fold = card.querySelector<HTMLDetailsElement>("details[data-collapsible]");
+    if (fold) {
+      fold.open = true;
+    }
     control.open = true;
     control.querySelector<HTMLElement>("input:not([type=hidden]), textarea")?.focus();
   } else {
     control.click();
+  }
+}
+
+/** Selects the next pending finding after the current one, wrapping around. */
+function goToNextPending(): void {
+  const cards = findings();
+  const current = activeIndex(cards);
+  const order = [...cards.keys()].map((i) => (current + 1 + i) % cards.length);
+  const next = order.find((i) => cards[i]?.dataset.status === "pending");
+  if (next !== undefined) {
+    activate(cards, next);
   }
 }
 
@@ -57,7 +76,31 @@ function isTyping(target: EventTarget | null): boolean {
 
 const ACTION_KEYS: Record<string, string> = { c: "confirm", r: "reject", e: "edit", u: "undo" };
 
+/** Keys that work while typing in a finding's form. True if one was handled. */
+function handleFormKey(event: KeyboardEvent): boolean {
+  if (!(event.target instanceof HTMLElement)) {
+    return false;
+  }
+  const form = event.target.closest<HTMLFormElement>("[data-composer], [data-finding] form");
+  if (!form) {
+    return false;
+  }
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    form.requestSubmit();
+    return true;
+  }
+  if (event.key === "Escape" && form.dataset.composer !== undefined) {
+    form.querySelector<HTMLElement>("[data-cancel]")?.click();
+    return true;
+  }
+  return false;
+}
+
 function handleKey(event: KeyboardEvent): void {
+  if (handleFormKey(event)) {
+    return;
+  }
   if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
     return;
   }
@@ -72,12 +115,7 @@ function handleKey(event: KeyboardEvent): void {
   } else if (event.key === "k") {
     activate(cards, Math.max(current - 1, 0));
   } else if (event.key === "n") {
-    // Next pending finding after the current one, wrapping to the start.
-    const order = [...cards.keys()].map((i) => (current + 1 + i) % cards.length);
-    const next = order.find((i) => cards[i]?.dataset.status === "pending");
-    if (next !== undefined) {
-      activate(cards, next);
-    }
+    goToNextPending();
   } else if (ACTION_KEYS[event.key] && current !== -1) {
     event.preventDefault();
     press(cards[current]!, ACTION_KEYS[event.key]!);
@@ -104,13 +142,23 @@ export function FindingKeys() {
   }, []);
 
   return (
-    <p className="hidden items-center gap-1.5 text-xs text-ink-soft md:flex">
-      <kbd className={KBD}>j</kbd>
-      <kbd className={KBD}>k</kbd> move
-      <kbd className={`${KBD} ml-2`}>n</kbd> next pending
-      <kbd className={`${KBD} ml-2`}>c</kbd> confirm
-      <kbd className={KBD}>r</kbd> reject
-      <kbd className={KBD}>e</kbd> edit
-    </p>
+    <div className="flex items-center gap-4">
+      <p className="hidden items-center gap-1.5 text-xs text-ink-soft xl:flex">
+        <kbd className={KBD}>j</kbd>
+        <kbd className={KBD}>k</kbd> move
+        <kbd className={`${KBD} ml-2`}>c</kbd> confirm
+        <kbd className={KBD}>r</kbd> reject
+        <kbd className={KBD}>e</kbd> edit
+      </p>
+      {/* The same as pressing n, for people using the mouse. */}
+      <button
+        type="button"
+        onClick={goToNextPending}
+        className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface-raised px-2.5 py-1 text-xs font-medium transition hover:border-slate-400"
+      >
+        Next pending
+        <kbd className={KBD}>n</kbd>
+      </button>
+    </div>
   );
 }

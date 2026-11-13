@@ -8,12 +8,13 @@ import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { ReviewContent } from "@/components/review/review-content";
 import { parseComposeTarget } from "@/dashboard/compose-target";
 import { ReviewProgress } from "@/components/review/review-progress";
+import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
-import { BUTTON_PRIMARY, INPUT, LINK, SECTION_LABEL } from "@/components/ui";
+import { BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { ACTION_ERRORS, getReviewFor, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { fixPromptFor } from "@/github/publish";
-import { countByStatus } from "@/sandbox/model";
+import { countByStatus, publishBlockedReason } from "@/sandbox/model";
 import { publishReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
 
@@ -76,14 +77,33 @@ function ProgressBar({ detail, locked }: { detail: ReviewDetail; locked: boolean
         </p>
         <div className="ml-auto flex items-center gap-4">
           {!locked && <FindingKeys />}
-          {!locked && (
-            <a href="#publish" className={LINK + " text-sm"}>
-              Go to publish
-            </a>
-          )}
+          {!locked && <PublishShortcut pending={counts.pending} />}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The publish control in the sticky bar. It jumps to the publish form, and
+ * while a finding is pending it is disabled and says why, the same as the
+ * button in the form itself.
+ */
+function PublishShortcut({ pending }: { pending: number }) {
+  const blocked = publishBlockedReason(pending);
+  if (blocked) {
+    return (
+      <ReasonTip reason={blocked} side="bottom" align="end">
+        <button type="button" disabled className={BUTTON_PRIMARY_SMALL}>
+          Publish
+        </button>
+      </ReasonTip>
+    );
+  }
+  return (
+    <a href="#publish" className={BUTTON_PRIMARY_SMALL}>
+      Publish
+    </a>
   );
 }
 
@@ -92,6 +112,7 @@ const CHOICE =
 
 function PublishForm({ detail }: { detail: ReviewDetail }) {
   const counts = countByStatus(detail.findings);
+  const blocked = publishBlockedReason(counts.pending);
   const confirmedCritical = detail.findings.filter(
     (f) => f.status === "confirmed" && f.severity === "critical",
   ).length;
@@ -163,14 +184,14 @@ function PublishForm({ detail }: { detail: ReviewDetail }) {
         <textarea name="note" rows={2} maxLength={2000} className={`mt-1 ${INPUT}`} />
       </label>
       <div className="mt-3 flex items-center gap-3">
-        <button disabled={counts.pending > 0} className={BUTTON_PRIMARY}>
-          Publish review
-        </button>
-        {counts.pending > 0 && (
+        <ReasonTip reason={blocked}>
+          <button disabled={blocked !== null} className={BUTTON_PRIMARY}>
+            Publish review
+          </button>
+        </ReasonTip>
+        {blocked && (
           <span className="text-sm text-ink-soft">
-            {counts.pending} finding{counts.pending === 1 ? "" : "s"} still pending. Press{" "}
-            <kbd className="rounded border border-edge px-1 font-mono text-xs">n</kbd> to jump to
-            the next one.
+            {blocked} Press <kbd className={KBD}>n</kbd> to jump to the next one.
           </span>
         )}
       </div>

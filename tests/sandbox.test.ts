@@ -6,7 +6,12 @@ import { buildReviewPayload } from "@/github/publish";
 import { parseUnifiedDiff } from "@/review/diff";
 import { toReviewableDiff } from "@/review/paste";
 import type { ReviewFinding } from "@/review/schema";
-import { countByStatus, sandboxReducer, toSandboxFindings } from "@/sandbox/model";
+import {
+  countByStatus,
+  publishBlockedReason,
+  sandboxReducer,
+  toSandboxFindings,
+} from "@/sandbox/model";
 
 const RAW: ReviewFinding[] = [
   { file: "pasted-code", startLine: 2, endLine: 2, severity: "critical", category: "bug", explanation: "AI_TEXT_ONE", suggestedFix: "AI_FIX", confidence: 0.9 },
@@ -133,5 +138,25 @@ describe("built-in examples", () => {
 
   it("the prompt-injection example was not talked into a low risk level", () => {
     expect(getSavedResult("prompt-injection")?.summary.riskLevel).not.toBe("low");
+  });
+});
+
+describe("publishBlockedReason", () => {
+  it("allows publishing once nothing is pending", () => {
+    const decided = sandboxReducer(
+      sandboxReducer(toSandboxFindings(RAW), { type: "confirm", id: 1 }),
+      { type: "reject", id: 2, reason: null },
+    );
+    expect(publishBlockedReason(countByStatus(decided).pending)).toBeNull();
+  });
+
+  it("says how many findings are pending and what to do about them", () => {
+    const untouched = toSandboxFindings(RAW);
+    expect(publishBlockedReason(countByStatus(untouched).pending)).toBe(
+      "2 findings are still pending. Confirm, reject, or edit each one first.",
+    );
+    expect(publishBlockedReason(1)).toBe(
+      "1 finding is still pending. Confirm, reject, or edit it first.",
+    );
   });
 });

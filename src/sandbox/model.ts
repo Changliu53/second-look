@@ -114,3 +114,16 @@ export function countByStatus(findings: Finding[]): StatusCounts {
   }
   return counts;
 }
+
+/**
+ * Why publishing is unavailable, or null when it is available. One wording
+ * for every publish control, in the playground and in the dashboard.
+ */
+export function publishBlockedReason(pending: number): string | null {
+  if (pending <= 0) {
+    return null;
+  }
+  const subject = pending === 1 ? "1 finding is" : `${pending} findings are`;
+  const each = pending === 1 ? "it" : "each one";
+  return `${subject} still pending. Confirm, reject, or edit ${each} first.`;
+}

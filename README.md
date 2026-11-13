@@ -2,13 +2,13 @@
 
 In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look is a tool for that engineer: it does the first pass on each pull request, and the engineer confirms, rejects, or rewrites every finding before the author sees anything.
 
-![The playground: example changes on the left, and on the right four findings on a C# file, two confirmed, one of them written by the reviewer](docs/home.jpg)
+![The playground: example changes on the left, and on the right a C# file under review with one finding confirmed, one rejected with reasons to pick from, and Publish disabled while one is pending](docs/home.jpg)
 
 ## Try it
 
 Everything below works without an account.
 
-- **Playground:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then open the second tab to choose who fixes it and see what gets posted. Or paste your own code.
+- **Playground:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then choose who fixes it and press Publish to see what the author would get. Nothing is posted from the playground. Or paste your own code.
 - **Real pull requests after review, read-only:** https://second-look-review.vercel.app/example. Two pull requests on a sample C# service, each through two rounds. On GitHub: [CSV export](https://github.com/Changliu53/fieldops-platform-sample/pull/1), sent back to the author with a fix prompt, and [column rename](https://github.com/Changliu53/fieldops-platform-sample/pull/2), taken over by the reviewer.
 - **The tool reviewing its own code:** pull requests [#3](https://github.com/Changliu53/second-look/pull/3) to [#7](https://github.com/Changliu53/second-look/pull/7) in this repository. It found a flaw in its own eval, a setup script that failed on the documented path, and a crash that the build and the tests had both missed.
 
@@ -31,7 +31,7 @@ flowchart LR
 
    ![A running review: three steps with a timer](docs/live-progress.jpg)
 
-3. **An engineer decides.** Findings sit inline in the diff. Confirm, reject with a reason, or rewrite each one. `j` `k` `n` move between findings and `c` `r` `e` act on them. To add something the first pass missed, click a line number and write the finding yourself.
+3. **An engineer decides.** Findings sit inline in the diff. Confirm, reject, or rewrite each one; each is one click, and a decided finding folds to one line so what is left stands out. A reason for a rejection is optional and one more click. `j` `k` `n` move between findings and `c` `r` `e` act on them. To add something the first pass missed, hover a line, click the `+`, and write the finding yourself. Publish stays disabled, and says why, until every finding has a decision.
 
    ![The reviewer's page on a C# pull request: two access-control findings inline with Confirm, Reject and Edit](docs/dashboard.jpg)
 

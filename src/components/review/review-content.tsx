@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { addFindingAction } from "@/app/dashboard/actions";
 import { SummaryCard } from "@/components/summary-card";
-import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
+import { BUTTON_PRIMARY, KBD, LINK, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { ReviewDetail, ReviewRound } from "@/db/queries";
 import { parseUnifiedDiff } from "@/review/diff";
 import { getSkipReason } from "@/review/filters";
 import { composeHref, type ComposeTarget } from "@/dashboard/compose-target";
-import { DiffFile } from "./diff-file";
+import { AddOnLine, DiffFile } from "./diff-file";
 import { FindingOutline } from "./finding-outline";
 import { FollowUpPanel } from "./follow-up-panel";
 import { RoundsStrip } from "./rounds-strip";
@@ -18,6 +18,7 @@ function Composer({ reviewId, target }: { reviewId: number; target: ComposeTarge
   return (
     <form
       id="compose"
+      data-composer
       action={addFindingAction}
       className="scroll-mt-24 border-y border-accent bg-accent-soft px-4 py-3 font-sans"
     >
@@ -28,9 +29,13 @@ function Composer({ reviewId, target }: { reviewId: number; target: ComposeTarge
       <FindingFields startLine={target.line} />
       <div className="mt-3 flex items-center gap-3">
         <button className={BUTTON_PRIMARY}>Add finding</button>
-        <Link href={`/dashboard/reviews/${reviewId}`} className={`${LINK} text-sm`}>
+        <Link data-cancel href={`/dashboard/reviews/${reviewId}`} className={`${LINK} text-sm`}>
           Cancel
         </Link>
+        <span className="hidden text-xs text-ink-soft sm:inline">
+          <kbd className={KBD}>⌘</kbd> <kbd className={KBD}>Enter</kbd> to add,{" "}
+          <kbd className={KBD}>Esc</kbd> to cancel
+        </span>
       </div>
     </form>
   );
@@ -101,8 +106,12 @@ export function ReviewContent({
       )}
 
       {!locked && view.files.length > 0 && (
-        <p className="mt-4 text-xs text-ink-soft">
-          Seen something the first pass missed? Click a line number to add your own finding.
+        <p className="mt-4 text-xs leading-relaxed text-ink-soft">
+          <span className="font-medium text-ink">Confirm</span> sends a finding to the author.{" "}
+          <span className="font-medium text-ink">Reject</span> keeps it here and the author never
+          sees it. <span className="font-medium text-ink">Edit</span> rewrites it in your words.
+          Missed something? Hover a line and click{" "}
+          <span className="rounded bg-accent px-1 font-bold text-white">+</span> to add your own.
         </p>
       )}
 
@@ -120,9 +129,9 @@ export function ReviewContent({
                     <Link
                       href={composeHref(review.id, file.path, line)}
                       title="Add your own finding on this line"
-                      className="block rounded-sm hover:bg-accent hover:text-white"
+                      className="block hover:text-ink"
                     >
-                      {line}
+                      <AddOnLine line={line} />
                     </Link>
                   ),
                   afterLine: (line) =>

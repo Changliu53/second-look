@@ -216,3 +216,20 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What:** Every page has the same top bar with the links that go to other pages. The playground's left pane holds only controls that change what the right pane shows.
 **Why:** The first layout put the site links inside the playground's side panel, next to the example list. They looked like tabs for the panel and then left the page. Other playgrounds and review tools keep global navigation at the top and use side panels for things local to the page.
 **Rejected:** Keeping the links in the panel and restyling them. The problem was where they were, not how they looked.
+
+## 41. Rejecting is one click, and the reason is asked afterwards
+**What:** Reject no longer opens a form. The finding is rejected at once and folds to one line, with the common reasons under it as one-click chips. Picking one is optional. A decided finding of any kind folds to one line and opens again on click.
+**Why:** Going through a real review, most rejections were obvious and the form made each one three steps. A long review also stayed long: decided findings took as much room as pending ones, so it was hard to see what was left.
+**Rejected:** Requiring a reason. It is useful (the next review is told not to raise the finding again either way, and the reason is there for the reviewer's own record), but a required field on the most common action gets filled with noise.
+**Details:** In the dashboard each chip is a submit button that carries its reason, so it works without JavaScript like the rest of the page.
+
+## 42. Publish controls are disabled while a finding is pending, and say why
+**What:** Every control that leads to publishing (the playground's second tab and its two buttons, the dashboard's top-bar button and the button in the publish form) is disabled while any finding is pending. Hovering one shows the reason: how many findings are pending and that each needs to be confirmed, rejected, or edited first. The text comes from one function, `publishBlockedReason`.
+**Why:** The earlier layout let the reviewer reach the publish step and only then told them it would not work. A control that cannot do anything should look that way and explain itself where the pointer is.
+**Details:** The tooltip is on a wrapper element, because a disabled button fires no mouse events of its own and the browser's built-in `title` tooltip takes over a second to appear. The server still refuses to publish with a pending finding; the disabled button is for the reviewer, not for safety.
+
+## 43. The playground has a Publish button that publishes nothing
+**What:** The playground's second step ends in a "Publish review" button. Pressing it posts nothing and stores nothing. It shows a confirmation, locks the findings as a real publish does, and lists what happens next on a real pull request.
+**Why:** Without it the walk-through stopped at a preview, and it was not clear that publishing is a separate, deliberate act by the reviewer. That act is the point of the product.
+**Risk:** A visitor could think something was sent. The button's caption, the confirmation, and the result all say "simulated" and that nothing left the browser.
+

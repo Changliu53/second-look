@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { RiskBadge } from "@/components/badges";
 import { MarkdownLite } from "@/components/markdown-lite";
-import { DiffFile } from "@/components/review/diff-file";
+import { AddOnLine, DiffFile } from "@/components/review/diff-file";
 import { FindingFields } from "@/components/review/finding-fields";
 import { FindingOutline } from "@/components/review/finding-outline";
 import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { FindingKeys } from "@/components/review/finding-keys";
+import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
+import { Toast } from "@/components/toast";
 import { BUTTON, BUTTON_PRIMARY, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { Finding } from "@/db/schema";
@@ -28,6 +30,7 @@ import { PASTED_FILE_NAME, toReviewableDiff } from "@/review/paste";
 import { CATEGORIES, SEVERITIES, type ReviewSummary } from "@/review/schema";
 import {
   countByStatus,
+  publishBlockedReason,
   sandboxReducer,
   toSandboxFindings,
   type SandboxAction,
@@ -92,6 +95,8 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
   const [code, setCode] = useState(selected?.code ?? "");
   const [description, setDescription] = useState(selected?.description ?? "");
   const [request, setRequest] = useState<Request>({ phase: "idle" });
+  const [published, setPublished] = useState<Resolution | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("review");
   const [review, setReview] = useState<Review | null>(
     selected && saved
@@ -122,8 +127,29 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
       origin: "Reviewed just now. Your code was sent to the model and was not stored.",
     });
     setFindings(toSandboxFindings(outcome.result.findings));
+    setPublished(null);
     setTab("review");
     setRequest({ phase: "idle" });
+  }
+
+  /** The simulated publish: nothing leaves the browser. */
+  function publish(resolution: Resolution) {
+    setPublished(resolution);
+    setToast(
+      resolution === "reviewer_takes_over"
+        ? "Published (simulated). The author is told you are taking this over."
+        : "Published (simulated). The author gets your comments and the fix prompt.",
+    );
+    document.getElementById("result")?.scrollTo({ top: 0 });
+  }
+
+  /** Back to the review as the AI returned it, to try a different path. */
+  function startOver() {
+    // Drop findings the visitor added and undo every decision.
+    setFindings((current) => current.filter((f) => f.source === "ai").map(resetDecision));
+    setPublished(null);
+    setTab("review");
+    document.getElementById("result")?.scrollTo({ top: 0 });
   }
 
   /** Switches tab and returns to the top, since the two tabs differ in length. */
@@ -263,6 +289,9 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
             findings={findings}
             tab={tab}
             onTab={showTab}
+            published={published}
+            onPublish={publish}
+            onStartOver={startOver}
             onAction={act}
           />
         ) : (
@@ -270,8 +299,21 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
         )}
       </div>
       </main>
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </div>
   );
+}
+
+/** A finding as the AI returned it, with any decision removed. */
+function resetDecision(finding: Finding): Finding {
+  return {
+    ...finding,
+    status: "pending",
+    editedExplanation: null,
+    editedSuggestedFix: null,
+    rejectionReason: null,
+    decidedBy: null,
+  };
 }
 
 const STEPS = [
@@ -349,16 +391,26 @@ function ResultPane({
   tab,
   onTab,
   onAction,
+  published,
+  onPublish,
+  onStartOver,
 }: {
   review: Review;
   findings: Finding[];
   tab: Tab;
   onTab: (tab: Tab) => void;
   onAction: (action: SandboxAction) => void;
+  /** Set once the visitor has pressed Publish. Decisions are then fixed. */
+  published: Resolution | null;
+  onPublish: (resolution: Resolution) => void;
+  onStartOver: () => void;
 }) {
   const files = useMemo(() => parseUnifiedDiff(toReviewableDiff(review.code)), [review.code]);
   const view = useMemo(() => buildReviewView(files, findings), [files, findings]);
   const counts = countByStatus(findings);
+  // Publishing waits for every finding to have a decision, as it does in the
+  // dashboard, and each publish control says so when hovered.
+  const blocked = published ? null : publishBlockedReason(counts.pending);
   // Plain pasted code becomes a one-file "diff"; show it as code, not a diff.
   const isSnippet = files.length === 1 && files[0]?.path === PASTED_FILE_NAME;
   // The line a visitor clicked to write a finding of their own.
@@ -405,9 +457,17 @@ function ResultPane({
           <button role="tab" aria-selected={tab === "review"} className={tabClass("review")} onClick={() => onTab("review")}>
             1. Your review
           </button>
-          <button role="tab" aria-selected={tab === "author"} className={tabClass("author")} onClick={() => onTab("author")}>
-            2. Publish: who fixes it
-          </button>
+          <ReasonTip reason={blocked} side="bottom">
+            <button
+              role="tab"
+              aria-selected={tab === "author"}
+              disabled={blocked !== null}
+              className={`${tabClass("author")} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-ink-soft`}
+              onClick={() => onTab("author")}
+            >
+              2. Publish
+            </button>
+          </ReasonTip>
         </div>
         <p className="text-xs text-ink-soft">
           <span className="font-semibold text-ink">{counts.pending}</span> pending
@@ -416,7 +476,7 @@ function ResultPane({
           <span className="mx-1.5">·</span>
           <span className="font-semibold text-ink">{counts.rejected}</span> rejected
         </p>
-        <div className="ml-auto">{tab === "review" && <FindingKeys />}</div>
+        <div className="ml-auto">{tab === "review" && !published && <FindingKeys />}</div>
       </div>
 
       <div className="mx-auto max-w-4xl p-5">
@@ -440,40 +500,64 @@ function ResultPane({
                 <FindingOutline findings={findings} />
               </div>
             )}
-            <p className="mt-3 text-xs text-ink-soft">
-              Seen something the first pass missed? Click a line number to add your own finding.
-            </p>
+            {!published && (
+              <p className="mt-3 text-xs leading-relaxed text-ink-soft">
+                <span className="font-medium text-ink">Confirm</span> sends a finding to the author.{" "}
+          <span className="font-medium text-ink">Reject</span> keeps it here and the author never
+          sees it. <span className="font-medium text-ink">Edit</span> rewrites it in your words.
+          Missed something? Hover a line and click{" "}
+          <span className="rounded bg-accent px-1 font-bold text-white">+</span> to add your own.
+              </p>
+            )}
             {view.files.map((file) => (
               <DiffFile
                 key={file.path}
                 file={file}
                 plain={isSnippet}
                 title={isSnippet ? "The code under review" : undefined}
-                renderFinding={(finding) => <SandboxFindingCard finding={finding} onAction={onAction} />}
-                slots={{
+                renderFinding={(finding) => (
+                  <SandboxFindingCard finding={finding} onAction={onAction} locked={published !== null} />
+                )}
+                slots={published ? undefined : {
                   lineNumber: (line) => (
                     <button
                       type="button"
                       title="Add your own finding on this line"
-                      className="w-full rounded-sm text-right hover:bg-accent hover:text-white"
-                      onClick={() => setComposing({ path: file.path, line })}
+                      className="w-full hover:text-ink"
+                      onClick={() => {
+                        setComposing({ path: file.path, line });
+                        // The form opens under the line, which may be at the
+                        // bottom of the window. Bring all of it into view.
+                        requestAnimationFrame(() =>
+                          document
+                            .getElementById("compose")
+                            ?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+                        );
+                      }}
                     >
-                      {line}
+                      <AddOnLine line={line} />
                     </button>
                   ),
                   afterLine: (line) =>
                     composing?.path === file.path && composing.line === line ? (
                       <form
+                        id="compose"
+                        data-composer
                         onSubmit={addFinding}
-                        className="border-y border-accent bg-accent-soft px-4 py-3 font-sans"
+                        // The margins keep it clear of the sticky bars.
+                        className="scroll-mb-20 scroll-mt-16 border-y border-accent bg-accent-soft px-4 py-3 font-sans"
                       >
                         <p className="mb-2 text-sm font-semibold">Your finding on line {line}</p>
                         <FindingFields startLine={line} />
                         <div className="mt-3 flex items-center gap-3">
                           <button className={BUTTON_PRIMARY}>Add finding</button>
-                          <button type="button" className={BUTTON} onClick={() => setComposing(null)}>
+                          <button type="button" data-cancel className={BUTTON} onClick={() => setComposing(null)}>
                             Cancel
                           </button>
+                          <span className="hidden text-xs text-ink-soft sm:inline">
+                            <kbd className={KBD}>⌘</kbd> <kbd className={KBD}>Enter</kbd> to add,{" "}
+                            <kbd className={KBD}>Esc</kbd> to cancel
+                          </span>
                         </div>
                       </form>
                     ) : null,
@@ -484,26 +568,52 @@ function ResultPane({
               <section className="mt-6">
                 <h2 className={SECTION_LABEL}>Findings outside the changed lines</h2>
                 {view.unplaced.map((finding) => (
-                  <SandboxFindingCard key={finding.id} finding={finding} onAction={onAction} />
+                  <SandboxFindingCard
+                    key={finding.id}
+                    finding={finding}
+                    onAction={onAction}
+                    locked={published !== null}
+                  />
                 ))}
               </section>
             )}
-            {findings.length > 0 && (
-              <div className="mt-6 flex items-center gap-3">
-                <button className={BUTTON_PRIMARY} onClick={() => onTab("author")}>
-                  Next: publish and choose who fixes it
-                </button>
-                {counts.pending > 0 && (
-                  <span className="text-xs text-ink-soft">
-                    {counts.pending} still pending. The real dashboard will not publish until every
-                    finding has a decision.
-                  </span>
-                )}
+            {findings.length > 0 && !published && (
+              <div className="sticky bottom-0 -mx-5 mt-6 flex flex-wrap items-center gap-3 border-t border-edge bg-surface-raised/95 px-5 py-3 backdrop-blur">
+                <ReasonTip reason={blocked}>
+                  <button
+                    className={BUTTON_PRIMARY}
+                    disabled={blocked !== null}
+                    onClick={() => onTab("author")}
+                  >
+                    Continue to publish
+                  </button>
+                </ReasonTip>
+                <span className="text-xs text-ink-soft">
+                  {blocked ??
+                    `All decided: ${counts.confirmed} to send, ${counts.rejected} rejected.`}
+                </span>
               </div>
+            )}
+            {published && (
+              <p className="mt-6 rounded-md border border-edge bg-surface-raised p-3 text-sm text-ink-soft">
+                This review is published (simulated), so its findings can no longer be changed.{" "}
+                <button className="text-accent underline-offset-2 hover:underline" onClick={onStartOver}>
+                  Start over
+                </button>{" "}
+                to try a different path.
+              </p>
             )}
           </>
         ) : (
-          <AuthorView review={review} findings={findings} files={files} pending={counts.pending} />
+          <AuthorView
+            review={review}
+            findings={findings}
+            files={files}
+            blocked={blocked}
+            published={published}
+            onPublish={onPublish}
+            onStartOver={onStartOver}
+          />
         )}
       </div>
     </div>
@@ -535,14 +645,24 @@ function AuthorView({
   review,
   findings,
   files,
-  pending,
+  blocked,
+  published,
+  onPublish,
+  onStartOver,
 }: {
   review: Review;
   findings: Finding[];
   files: ReturnType<typeof parseUnifiedDiff>;
-  pending: number;
+  /** Why publishing is unavailable, or null. The tab is disabled while this
+   *  is set, so the button here is a second guard, not the usual path. */
+  blocked: string | null;
+  published: Resolution | null;
+  onPublish: (resolution: Resolution) => void;
+  onStartOver: () => void;
 }) {
-  const [resolution, setResolution] = useState<Resolution>("author_fixes");
+  const [chosen, setResolution] = useState<Resolution>("author_fixes");
+  // Once published, the mode that was used is shown and cannot be changed.
+  const resolution = published ?? chosen;
   const [copied, setCopied] = useState(false);
   const confirmed = findings.filter((finding) => finding.status === "confirmed");
   const takenOver = resolution === "reviewer_takes_over";
@@ -579,12 +699,42 @@ function AuthorView({
 
   return (
     <div className="space-y-4">
-      {pending > 0 && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          {pending} finding{pending === 1 ? " is" : "s are"} still pending and not shown below. In
-          the real dashboard, Publish stays disabled until every finding is confirmed or rejected,
-          so nothing is dropped by accident.
-        </p>
+      {published ? (
+        <section role="status" className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-950">
+          <p className="text-base font-semibold">Review published (simulated)</p>
+          <p className="mt-1 leading-relaxed">
+            Nothing left your browser. On a real pull request, this is the moment the author first
+            hears from Second Look: one GitHub review with the {confirmed.length} finding
+            {confirmed.length === 1 ? "" : "s"} you confirmed, shown below.
+          </p>
+          <p className="mt-2 font-medium">What happens next</p>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-5 leading-relaxed">
+            <li>
+              {takenOver
+                ? "You check out the branch and make the fixes, with the prompt below if you use a coding agent."
+                : "The author pastes the fix prompt into their AI tool and pushes the result."}
+            </li>
+            <li>The push starts a second review. It says which findings are fixed and does not repeat what you rejected.</li>
+            <li>You publish again, and the check turns green when no critical finding is left.</li>
+          </ol>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Link href="/example" className={BUTTON_PRIMARY}>
+              See real pull requests after round two
+            </Link>
+            <button className={BUTTON} onClick={onStartOver}>
+              Start over
+            </button>
+          </div>
+        </section>
+      ) : (
+        <header>
+          <h2 className="text-lg font-semibold tracking-tight">Publish the review</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
+            Until now nothing has reached the author. Choose who makes the fixes, check what will
+            be posted, then publish. This is a playground, so pressing Publish only shows what
+            would happen.
+          </p>
+        </header>
       )}
 
       {confirmed.length > 0 && (
@@ -601,6 +751,7 @@ function AuthorView({
                   name="resolution"
                   className="mt-1"
                   checked={resolution === mode.value}
+                  disabled={published !== null}
                   onChange={() => setResolution(mode.value)}
                 />
                 <span>
@@ -613,6 +764,20 @@ function AuthorView({
         </fieldset>
       )}
 
+      {!published && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-edge bg-surface-raised p-4">
+          <ReasonTip reason={blocked}>
+            <button className={BUTTON_PRIMARY} disabled={blocked !== null} onClick={() => onPublish(resolution)}>
+              Publish review
+            </button>
+          </ReasonTip>
+          <span className="text-xs leading-relaxed text-ink-soft">
+            Posts one review with {confirmed.length} finding{confirmed.length === 1 ? "" : "s"} and
+            sets the check. Below is exactly what would be posted.
+          </span>
+        </div>
+      )}
+
       <div className={`rounded-lg border p-3 text-sm ${CHECK_STYLES[check.conclusion ?? ""] ?? "border-edge"}`}>
         <p className={SECTION_LABEL}>Check on the pull request</p>
         <p className="mt-1 font-semibold">Second Look: {check.title}</p>
@@ -621,7 +786,7 @@ function AuthorView({
 
       <section className="rounded-lg border border-edge bg-surface-raised">
         <div className="flex items-center justify-between gap-3 border-b border-edge px-4 py-2">
-          <p className={SECTION_LABEL}>Review posted to GitHub</p>
+          <p className={SECTION_LABEL}>{published ? "Review posted to GitHub" : "Review that will be posted"}</p>
           <button className={BUTTON} onClick={copyMarkdown}>
             {copied ? "Copied" : "Copy as Markdown"}
           </button>

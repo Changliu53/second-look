@@ -10,14 +10,26 @@ export function FindingFields({ startLine }: { startLine: number }) {
   return (
     <>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-ink-soft">
-          Severity
-          <select name="severity" defaultValue="warning" className={`mt-1 ${INPUT} w-32`}>
+        <fieldset className="text-xs text-ink-soft">
+          <legend>Severity</legend>
+          <div className="mt-1 flex overflow-hidden rounded-md border border-slate-300 bg-surface-raised">
             {SEVERITIES.map((severity) => (
-              <option key={severity}>{severity}</option>
+              <label
+                key={severity}
+                className="cursor-pointer border-l border-slate-300 px-3 py-1.5 text-sm text-ink transition first:border-l-0 hover:bg-slate-50 has-[:checked]:bg-slate-900 has-[:checked]:text-white"
+              >
+                <input
+                  type="radio"
+                  name="severity"
+                  value={severity}
+                  defaultChecked={severity === "warning"}
+                  className="sr-only"
+                />
+                {severity}
+              </label>
             ))}
-          </select>
-        </label>
+          </div>
+        </fieldset>
         <label className="text-xs text-ink-soft">
           Category
           <select name="category" defaultValue="bug" className={`mt-1 ${INPUT} w-44`}>

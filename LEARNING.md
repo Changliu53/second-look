@@ -97,3 +97,22 @@ words. "Read line by line" marks the files worth knowing in detail.
 
 5. **What would you change first for real production use?**
    A queue with retries for reviews, token-based size limits with chunking for large PRs, feeding rejection reasons back into the prompt, and a larger eval with repeated runs to measure variance.
+
+## Tenancy and migrations (the C# and EF Core eval cases)
+
+**Read line by line:** `eval/cases/ef-*/diff.patch`, the two new category definitions in `src/review/prompt.ts`
+
+1. **Why does "rename a column" as `DropColumn` + `AddColumn` lose data, and what is the fix?**
+   Drop deletes the column and every value in it; Add creates a new empty column. Nothing copies the values across. `RenameColumn` changes the name and keeps the data. EF Core scaffolds drop-and-add when it cannot tell a rename from a remove-plus-add, so migrations must be read, not trusted.
+
+2. **A migration adds a required foreign key with `defaultValue: 0`. It passes on a dev database. Why does it fail in production?**
+   Existing rows all get 0, and no parent row has id 0, so adding the constraint fails. An empty dev table has no rows to violate it. The safe order is: add the column as nullable, backfill real values, then make it required and add the constraint.
+
+3. **What is a global query filter, and how do the planted bugs get around it?**
+   EF Core can attach `Where(TenantId == current)` to every query on an entity. `IgnoreQueryFilters()` turns it off for one query, and raw SQL (`ExecuteSqlRaw`) never had it. Both look harmless in a diff unless you know the filter exists.
+
+4. **Why are these two classes of bug worse than a crash?**
+   A crash is visible and reverting the commit fixes it. A cross-tenant read has already shown one company's data to another, and a dropped column needs a restore from backup. Neither is undone by a revert.
+
+5. **The reviewer cited "team guidelines" in its findings. Where do they come from, and why does that matter?**
+   From `.second-look.md` on the base branch. The model knows general patterns but not this platform's rules. Writing the invariants down once means every review checks them, and a finding that quotes the rule teaches the author the rule.

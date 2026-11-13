@@ -124,3 +124,15 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** The repository is public. Anyone can open a pull request from a fork, and each review is a paid model call, so an open webhook is a way to spend the owner's money. In the intended setting (a team's own repository) every author has write access, so nothing changes for them.
 **Rejected:** Reviewing everything and relying on a spend limit at the model provider. That caps the damage but still lets strangers use up the budget.
 **Cost:** Outside contributors get no review and no check run. A maintainer cannot trigger one for them yet.
+
+## 24. Access control and data loss are their own categories
+**What:** Two categories were added after the first release: `access-control` (missing tenant filter, missing authorization) and `data-loss` (migrations that destroy or break existing rows). The prompt tells the reviewer to ask, for every migration, what happens to rows that already exist.
+**Why:** In a multi-tenant business platform these are the two mistakes that cannot be undone by reverting the commit. A leaked row has been seen; a dropped column is gone. Filed under "security" and "bug" they looked the same as a missing input check. A separate label lets a reviewer scan for them first.
+**Rejected:** Leaving them inside `security` and `bug` and relying on severity.
+**Cost:** A Postgres enum can only be extended, and new values are appended. The order in `src/db/schema.ts` has to follow the migrations, not the alphabet.
+
+## 25. A public, read-only demo page
+**What:** `/demo` shows the reviewer's page for one pull request, named in `DEMO_PULL_REQUEST`, to anyone. It only ever loads a review that has been published.
+**Why:** The reviewer's page is the product, and it is behind a login plus write access to a repository. Without a public copy nobody outside can see it.
+**Rejected:** A guest login to the real dashboard. It would need its own permission model for one use.
+**Cost:** The page also shows the findings the reviewer rejected, which the author never saw. That is fine for a demo pull request in a public repository and wrong for a private one, so the variable must only point at a public repository.

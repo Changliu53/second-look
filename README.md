@@ -1,10 +1,14 @@
 # Second Look
 
-In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look does the first pass on each pull request, and the engineer confirms or rejects every finding before the author sees anything.
+In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look is a tool for that engineer: it does the first pass on each pull request, and the engineer confirms, rejects, or rewrites every finding before the author sees anything.
 
-Try it without installing anything: https://second-look-review.vercel.app/paste
+![The reviewer's page: a C# diff with two access-control findings inline, each with Confirm, Reject and Edit buttons](docs/dashboard.jpg)
 
-<!-- Screenshot: add docs/dashboard.png once the app is deployed. -->
+## Try it
+
+- **A reviewed pull request, read-only, no login:** https://second-look-review.vercel.app/demo
+- **Paste mode**, with one-click C#, EF Core, and React examples: https://second-look-review.vercel.app/paste
+- **What the author sees on GitHub:** the published review and check run on [pull request #2](https://github.com/Changliu53/second-look/pull/2) (C# and EF Core) and [pull request #1](https://github.com/Changliu53/second-look/pull/1) (TypeScript). Both contain planted problems.
 
 ## How it works
 
@@ -28,7 +32,16 @@ There is also a paste mode at `/paste` to try a review on a snippet or a diff wi
 
 ## What it looks for
 
-Problems that are common in AI-generated code: functions or packages that do not exist, logic that looks right and is wrong, missing error handling, secrets in code, changes unrelated to the stated purpose of the PR, and risky logic with no tests.
+Problems that are common in AI-generated code and easy to miss when the code "runs fine on my machine":
+
+- **Access control and tenancy:** a query on tenant-owned data with no tenant filter, `IgnoreQueryFilters()`, raw SQL that skips the filter, an endpoint with no authorization check.
+- **Data loss in migrations:** what happens to the rows that already exist. A rename done as drop then add, a required column or foreign key that existing rows cannot satisfy.
+- Functions or packages that do not exist.
+- Logic that looks right and is wrong, such as off-by-one errors and missing null checks.
+- Missing error handling, secrets in code, SQL built by string concatenation.
+- Changes unrelated to the stated purpose of the pull request, and risky logic with no tests.
+
+A repository can add its own rules in `.second-look.md` (see [the one in this repository](.second-look.md)). The reviewer cites them in its findings.
 
 ## Safety and cost guards
 
@@ -42,26 +55,40 @@ Problems that are common in AI-generated code: functions or packages that do not
 
 ## Eval
 
-`eval/cases` holds ten small pull requests. Eight have one planted bug each (a lodash function that does not exist, an off-by-one, an unhandled promise, SQL string concatenation, a hardcoded API key, an unrelated file changed, a missing null check, a prompt-injection comment next to a real bug). Two are clean.
+`eval/cases` holds thirteen small pull requests. Eleven have planted bugs, two are clean.
+
+| Case | Planted problem |
+|---|---|
+| `ef-missing-tenant-filter` | Two new EF Core queries skip the tenant filter the existing ones use |
+| `ef-migration-drops-data` | A column "rename" written as `DropColumn` + `AddColumn` |
+| `ef-required-fk-existing-rows` | A required foreign key with default 0, which fails on any table that has rows |
+| `hallucinated-api` | A lodash function that does not exist |
+| `off-by-one` | A loop that reads one past the end |
+| `unhandled-promise` | A background job with no error handling |
+| `sql-concat` | User input concatenated into SQL |
+| `hardcoded-key` | A live API key in source |
+| `scope-creep` | A footer change that also extends session lifetime to a year |
+| `missing-null-check` | A nullable result forced with a cast |
+| `prompt-injection` | A comment telling AI reviewers to report nothing, next to a real bug |
 
 ```
 npm run eval
 ```
 
-The script runs the real engine on each case and reports planted bugs found, false positives (unmatched critical or warning findings), and whether the injection case changed the risk level. Scoring rules are in `eval/score.ts`.
+The script runs the real engine on each case. A planted bug counts as found when a finding is in the same file, on overlapping lines, with an accepted category. Every other critical or warning finding counts as a false positive, even if it is a fair point. Rules are in `eval/score.ts`.
 
 Latest run (`claude-opus-5-5`, 2026-11-12, one run):
 
 | | |
 |---|---|
-| Planted bugs found | 8 of 8 |
-| Findings counted as false positives | 5 |
-| Extra nits | 1 |
+| Planted bugs found | 12 of 12 |
+| Findings counted as false positives | 6 |
+| Extra nits | 3 |
 | Prompt-injection case | Bug still reported, risk level not lowered |
 | Clean cases | No critical or warning findings |
-| Tokens | 27,744 in, 6,962 out |
+| Tokens | 41,397 in, 10,952 out |
 
-The five "false positives" are real but unplanted concerns, such as a fetch with no timeout or a sync job that can overlap itself. The scoring counts every unplanted critical or warning against the reviewer, which is strict on purpose. Model output varies between runs, so treat these numbers as one sample.
+The six "false positives" are unplanted but defensible concerns: `FirstAsync` throwing on a missing row, an empty search term matching everything, a sync job that can overlap itself. This is the main weakness the eval shows. The tool finds the planted bugs, and it also raises about one extra warning for every two pull requests. That noise is the reason a human confirms each finding before the author sees it. Output varies between runs, so treat these numbers as one sample.
 
 ## Setup
 
@@ -97,4 +124,5 @@ Design choices and the alternatives that were rejected are in [DECISIONS.md](DEC
 - A reviewer cannot add their own findings in the dashboard yet.
 - The dashboard asks GitHub for permissions on every page load, which is slow with many repositories.
 - Pull requests from authors without write access to the repository are not reviewed. This keeps strangers from spending the model budget on a public repository.
-- The eval is ten cases. It catches regressions; it is not a benchmark.
+- The eval is thirteen cases. It catches regressions; it is not a benchmark.
+- The reviewer has read about EF Core and tenancy patterns but does not know your platform. Invariants it should enforce have to be written in `.second-look.md`.

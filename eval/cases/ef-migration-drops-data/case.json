@@ -3,7 +3,30 @@
   "description": "Renames the phone column on customers to PrimaryPhone. No other change.",
   "plantedBug": "The migration drops the Phone column and adds a new empty PrimaryPhone column. Every existing customer's phone number is deleted. A rename needs RenameColumn.",
   "expected": [
-    { "file": "src/Platform.Data/Migrations/20260910153000_RenameCustomerPhone.cs", "startLine": 13, "endLine": 22, "categories": ["data-loss", "bug", "logic"] }
+    {
+      "file": "src/Platform.Data/Migrations/20260910153000_RenameCustomerPhone.cs",
+      "startLine": 13,
+      "endLine": 22,
+      "categories": [
+        "data-loss",
+        "bug",
+        "logic"
+      ]
+    }
   ],
-  "ignoreCategories": ["missing-tests"]
+  "ignoreCategories": [
+    "missing-tests"
+  ],
+  "allowed": [
+    {
+      "file": "src/Platform.Data/Migrations/20260910153000_RenameCustomerPhone.cs",
+      "startLine": 26,
+      "endLine": 38,
+      "categories": [
+        "data-loss",
+        "bug",
+        "logic"
+      ]
+    }
+  ]
 }

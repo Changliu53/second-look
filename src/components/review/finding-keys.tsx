@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ReasonTip } from "@/components/reason-tip";
 import { KBD } from "@/components/ui";
 
@@ -12,7 +12,7 @@ import { KBD } from "@/components/ui";
  *   c       confirm                       r   reject      e   edit      u   undo
  *
  * and, while typing in a finding's form: Cmd+Enter (Ctrl+Enter) saves it, and
- * Esc closes the form for a new finding.
+ * Esc closes the form for a new finding. ? shows the list.
  *
  * It works on the DOM, not on component state: findings are marked with
  * data-finding and their controls with data-action. That lets the same
@@ -98,8 +98,18 @@ function handleFormKey(event: KeyboardEvent): boolean {
   return false;
 }
 
+const HELP_ID = "keyboard-help";
+
 function handleKey(event: KeyboardEvent): void {
   if (handleFormKey(event)) {
+    return;
+  }
+  if (event.key === "?" && !isTyping(event.target)) {
+    const help = document.getElementById(HELP_ID);
+    if (help instanceof HTMLDialogElement && !help.open) {
+      event.preventDefault();
+      help.showModal();
+    }
     return;
   }
   if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
@@ -153,6 +163,72 @@ function activateFromHash(): void {
   }
 }
 
+const SHORTCUTS: Array<[string[], string]> = [
+  [["j"], "Next finding"],
+  [["k"], "Previous finding"],
+  [["n"], "Next pending finding"],
+  [["c"], "Confirm"],
+  [["r"], "Reject"],
+  [["e"], "Edit"],
+  [["u"], "Undo a decision"],
+  [["⌘", "Enter"], "Save the form you are typing in"],
+  [["Esc"], "Close a new finding's form, or this list"],
+  [["?"], "Show this list"],
+];
+
+/** The list of shortcuts, opened with "?" or the button beside the keys. */
+function KeyboardHelp() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => dialog.current?.showModal()}
+        aria-label="Keyboard shortcuts"
+        title="Keyboard shortcuts (?)"
+        className="hidden size-7 place-items-center rounded-md border border-edge text-xs font-semibold text-ink-soft transition hover:border-slate-400 hover:text-ink sm:grid"
+      >
+        ?
+      </button>
+      <dialog
+        id={HELP_ID}
+        ref={dialog}
+        // A click on the backdrop lands on the dialog itself: close.
+        onClick={(event) => event.target === dialog.current && dialog.current?.close()}
+        className="m-auto w-[min(26rem,92vw)] rounded-lg border border-edge bg-surface-raised p-0 text-ink shadow-xl backdrop:bg-slate-900/40"
+      >
+        <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+          <h2 className="text-sm font-semibold">Keyboard shortcuts</h2>
+          <button
+            type="button"
+            onClick={() => dialog.current?.close()}
+            className="rounded px-2 py-0.5 text-xs text-ink-soft hover:bg-slate-100"
+          >
+            Close
+          </button>
+        </div>
+        <dl className="divide-y divide-edge px-4 text-sm">
+          {SHORTCUTS.map(([keys, label]) => (
+            <div key={label} className="flex items-center justify-between gap-4 py-2">
+              <dt className="text-ink-soft">{label}</dt>
+              <dd className="flex shrink-0 gap-1">
+                {keys.map((key) => (
+                  <kbd key={key} className={KBD}>
+                    {key}
+                  </kbd>
+                ))}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="border-t border-edge px-4 py-3 text-xs text-ink-soft">
+          Click a finding to make it the one the keys act on.
+        </p>
+      </dialog>
+    </>
+  );
+}
+
 export function FindingKeys({
   pending,
   hints = true,
@@ -175,7 +251,7 @@ export function FindingKeys({
   }, []);
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-2 sm:gap-4">
       {hints && (
         <p className="hidden items-center gap-1.5 text-xs text-ink-soft xl:flex">
           <kbd className={KBD}>j</kbd>
@@ -202,6 +278,7 @@ export function FindingKeys({
           <kbd className={`${KBD} hidden sm:inline`}>n</kbd>
         </button>
       </ReasonTip>
+      <KeyboardHelp />
     </div>
   );
 }

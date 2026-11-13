@@ -12,6 +12,7 @@ export type CheckState =
   | { kind: "reviewing" }
   | { kind: "awaiting_reviewer"; findingCount: number; tooLarge: boolean }
   | { kind: "published"; confirmedCount: number; confirmedCriticalCount: number }
+  | { kind: "superseded" }
   | { kind: "failed" };
 
 function plural(count: number, word: string): string {
@@ -50,6 +51,16 @@ export function checkRunFor(state: CheckState): CheckRunUpdate {
         conclusion: "success",
         title: "No critical findings",
         summary: `A reviewer published the review with ${plural(state.confirmedCount, "confirmed finding")}, none of them critical.`,
+      };
+
+    case "superseded":
+      // This check belongs to an old commit. Branch protection looks at the
+      // newest commit, which has its own check, so "neutral" blocks nothing.
+      return {
+        status: "completed",
+        conclusion: "neutral",
+        title: "Superseded by a newer commit",
+        summary: "A newer commit was pushed while this review was running. See the check on the latest commit.",
       };
 
     case "failed":

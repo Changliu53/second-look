@@ -7,6 +7,7 @@ export const pullRequestEventSchema = z.object({
   pull_request: z.object({
     title: z.string(),
     body: z.string().nullable(),
+    draft: z.boolean().optional(),
     user: z.object({ login: z.string() }),
     head: z.object({ sha: z.string() }),
     base: z.object({ ref: z.string() }),
@@ -21,8 +22,16 @@ export const pullRequestEventSchema = z.object({
 
 export type PullRequestEvent = z.infer<typeof pullRequestEventSchema>;
 
-/** PR actions that mean "there is new code to review". */
-const REVIEWABLE_ACTIONS = new Set(["opened", "synchronize", "reopened"]);
+/**
+ * PR actions that mean "there is new code to review". A draft PR is skipped
+ * until its author marks it ready, which arrives as "ready_for_review".
+ */
+const REVIEWABLE_ACTIONS = new Set([
+  "opened",
+  "synchronize",
+  "reopened",
+  "ready_for_review",
+]);
 
 export function isReviewableAction(action: string): boolean {
   return REVIEWABLE_ACTIONS.has(action);

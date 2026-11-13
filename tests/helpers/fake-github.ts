@@ -17,12 +17,17 @@ export class FakeGitHub implements GitHubClient {
   reviews: Array<{ pullNumber: number; payload: ReviewPayload }> = [];
   fileRequests: Array<{ path: string; ref: string }> = [];
   failOn: "diff" | "createCheckRun" | "createReview" | null = null;
+  /** When set, getPullRequestDiff throws this exact error. */
+  diffError: Error | null = null;
 
   setFile(path: string, ref: string, content: string): void {
     this.files.set(`${path}@${ref}`, content);
   }
 
   async getPullRequestDiff(): Promise<string> {
+    if (this.diffError) {
+      throw this.diffError;
+    }
     if (this.failOn === "diff") {
       throw Object.assign(new Error("boom"), { status: 500 });
     }

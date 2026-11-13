@@ -39,6 +39,10 @@ describe("checkRunFor", () => {
     expect(checkRunFor({ kind: "failed" })).toMatchObject({ status: "completed", conclusion: "failure" });
   });
 
+  it("closes the check of an outdated commit as neutral, neither pass nor fail", () => {
+    expect(checkRunFor({ kind: "superseded" })).toMatchObject({ status: "completed", conclusion: "neutral" });
+  });
+
   it("tells the reviewer when the pull request was too large", () => {
     const check = checkRunFor({ kind: "awaiting_reviewer", findingCount: 0, tooLarge: true });
     expect(check.summary).toContain("too large");

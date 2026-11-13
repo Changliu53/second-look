@@ -104,14 +104,26 @@ function splitReviewableFiles(files: FileDiff[]): {
   return { reviewable, skipped };
 }
 
-function tooLargeSummary(diffChars: number, limit: number): ReviewSummary {
+function tooLargeSummary(detail: string): ReviewSummary {
   return {
-    whatChanged: `This pull request is too large for an automatic review (${diffChars} characters of changes, the limit is ${limit}).`,
+    whatChanged: `This pull request is too large for an automatic review (${detail}).`,
     riskLevel: "high",
     doubleCheck: [
       "Split this pull request into smaller ones that each do one thing, then open them separately.",
       "Large changes are hard to review for people too. Ask an engineer to look at it before merging.",
     ],
+  };
+}
+
+/** The result stored for a change that is too big to send to the model. */
+export function tooLargeResult(detail: string): ReviewResult {
+  return {
+    status: "too_large",
+    summary: tooLargeSummary(detail),
+    findings: [],
+    skippedFiles: [],
+    usage: NO_USAGE,
+    model: null,
   };
 }
 
@@ -217,12 +229,10 @@ export async function reviewChange(
   const diffChars = countDiffChars(reviewable);
   if (diffChars > limits.maxDiffChars) {
     return {
-      status: "too_large",
-      summary: tooLargeSummary(diffChars, limits.maxDiffChars),
-      findings: [],
+      ...tooLargeResult(
+        `${diffChars} characters of changes, the limit is ${limits.maxDiffChars}`,
+      ),
       skippedFiles: skipped,
-      usage: NO_USAGE,
-      model: null,
     };
   }
 

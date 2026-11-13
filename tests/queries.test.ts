@@ -9,6 +9,7 @@ import {
   failReview,
   getReviewDetail,
   listOpenReviews,
+  markPullRequestClosed,
   claimReviewForPublish,
   releasePublishClaim,
   recordPasteReview,
@@ -17,7 +18,7 @@ import {
   upsertPullRequest,
   upsertRepository,
 } from "@/db/queries";
-import { reviews } from "@/db/schema";
+import { findings, reviews } from "@/db/schema";
 import type { ReviewResult } from "@/review/engine";
 import { consumeHourlyLimit, hashClientIp, hourWindowStart } from "@/lib/rate-limit";
 import { createTestDb, seedPullRequest } from "./helpers/test-db";
@@ -139,15 +140,64 @@ describe("startGithubReview", () => {
   it("clears findings left behind by a crashed attempt before retrying", async () => {
     const { pullRequest } = await seedPullRequest(db);
     const input = { pullRequestId: pullRequest.id, headSha: "sha-1" };
-    const first = await startGithubReview(db, input);
-    await completeReview(db, first.review.id, completedResult(2));
-    await failReview(db, first.review.id, "simulated crash after findings were written");
+    const startedAt = new Date("2026-01-01T00:00:00Z");
+    const first = await startGithubReview(db, input, startedAt);
+    // The crash: findings were written, but the status never left "running".
+    await db.insert(findings).values({
+      reviewId: first.review.id, filePath: "src/checkout.ts", startLine: 1, endLine: 1,
+      severity: "warning", category: "bug", explanation: "left over", confidence: 0.5,
+    });
 
-    const retry = await startGithubReview(db, input);
+    const later = new Date(startedAt.getTime() + STALE_REVIEW_MS + 1000);
+    const retry = await startGithubReview(db, input, later);
     await completeReview(db, retry.review.id, completedResult(2));
 
     const detail = await getReviewDetail(db, retry.review.id);
-    expect(detail?.findings).toHaveLength(2);
+    expect(detail?.findings.map((f) => f.explanation)).toEqual(["Problem 0", "Problem 1"]);
+  });
+});
+
+describe("superseded and closed", () => {
+  it("does not let a superseded review come back to life when it finishes late", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const old = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    // A newer commit arrives while the first review is still running.
+    await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-2" });
+
+    const stillCurrent = await completeReview(db, old.review.id, completedResult(2));
+
+    expect(stillCurrent).toBe(false);
+    const detail = await getReviewDetail(db, old.review.id);
+    expect(detail?.review.status).toBe("superseded");
+    expect((await listOpenReviews(db)).map((r) => r.review.headSha)).toEqual(["sha-2"]);
+  });
+
+  it("does not mark a superseded review as failed either", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const old = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-2" });
+
+    expect(await failReview(db, old.review.id, "model_request_failed")).toBe(false);
+    expect((await getReviewDetail(db, old.review.id))?.review.status).toBe("superseded");
+  });
+
+  it("hides the review of a closed pull request and shows it again on reopen", async () => {
+    const { repository, pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(1));
+
+    await markPullRequestClosed(db, { githubRepoId: repository.githubRepoId, number: 7 });
+    expect(await listOpenReviews(db)).toEqual([]);
+
+    // Reopening sends a webhook, which upserts the pull request.
+    await upsertPullRequest(db, {
+      repositoryId: repository.id, number: 7, title: "Add checkout", authorLogin: "sam", headSha: "sha-1",
+    });
+    expect(await listOpenReviews(db)).toHaveLength(1);
+  });
+
+  it("ignores a close event for a repository it has never seen", async () => {
+    await expect(markPullRequestClosed(db, { githubRepoId: 424242, number: 1 })).resolves.toBeUndefined();
   });
 });
 

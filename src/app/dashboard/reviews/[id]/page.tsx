@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getSignedInLogin } from "@/auth";
 import { ReviewContent } from "@/components/review/review-content";
 import { getReviewFor } from "@/dashboard/service";
-import type { ReviewDetail } from "@/db/queries";
+import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { publishReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
 
@@ -23,6 +23,9 @@ function lockedReason(detail: ReviewDetail): string | null {
   }
   if (review.status === "superseded") {
     return "A newer commit was pushed to this pull request. This review is out of date.";
+  }
+  if (isStaleRunning(review)) {
+    return "The AI review did not finish. It may have timed out. Close and reopen the pull request to run it again.";
   }
   if (review.status === "running") {
     return "The AI review is still running. Reload in a minute.";

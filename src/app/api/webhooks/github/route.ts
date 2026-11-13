@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { getDb } from "@/db/client";
+import { markPullRequestClosed } from "@/db/queries";
 import { getInstallationClient } from "@/github/client";
 import { reviewPullRequest } from "@/github/review-pull-request";
 import { classifyWebhook } from "@/github/webhook";
@@ -27,6 +28,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const event = decision.event;
+  if (decision.kind === "closed") {
+    // One small update, done before responding. No background work needed.
+    await markPullRequestClosed(getDb(), {
+      githubRepoId: event.repository.id,
+      number: event.number,
+    });
+    return NextResponse.json({ closed: true });
+  }
+
   // GitHub expects an answer within 10 seconds and a review takes longer.
   // after() lets us respond now and keep the function alive for the work.
   after(async () => {

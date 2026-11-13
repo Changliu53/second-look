@@ -9,12 +9,19 @@ import {
 } from "@/db/queries";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
-import { reviewChange, type ReviewLimits, type ReviewModel } from "@/review/engine";
+import {
+  reviewChange,
+  tooLargeResult,
+  type ReviewInput,
+  type ReviewLimits,
+  type ReviewModel,
+  type ReviewResult,
+} from "@/review/engine";
 import { getSkipReason } from "@/review/filters";
 import type { FileContext } from "@/review/prompt";
-import { canReviewRepository } from "@/dashboard/access";
+import { canReviewRepository } from "./access";
 import { checkRunFor, type CheckState } from "./check-run";
-import type { GitHubClient, RepoRef } from "./client";
+import { DiffTooLargeError, type GitHubClient, type RepoRef } from "./client";
 import type { PullRequestEvent } from "./webhook-payload";
 
 export const GUIDELINES_PATH = ".second-look.md";
@@ -100,6 +107,47 @@ async function createCheck(
   }
 }
 
+/** Gathers the inputs from GitHub and runs the engine. */
+async function runReview(
+  event: PullRequestEvent,
+  repo: RepoRef,
+  deps: ReviewDeps,
+): Promise<ReviewResult> {
+  let diff: string;
+  try {
+    diff = await deps.github.getPullRequestDiff(repo, event.number);
+  } catch (error) {
+    if (error instanceof DiffTooLargeError) {
+      return tooLargeResult("GitHub could not render a diff this big");
+    }
+    throw error;
+  }
+
+  // Read the rules from the base branch, not the PR head. Otherwise the
+  // author of a PR could change the rules that review their own PR.
+  const guidelines = await deps.github.getFileContent(
+    repo,
+    GUIDELINES_PATH,
+    event.pull_request.base.ref,
+  );
+  const fileContents = await fetchFileContexts(
+    deps.github,
+    repo,
+    diff,
+    event.pull_request.head.sha,
+    deps.limits.maxContextChars,
+  );
+
+  const input: ReviewInput = {
+    diff,
+    title: event.pull_request.title,
+    description: event.pull_request.body ?? undefined,
+    fileContents,
+    guidelines: guidelines ?? undefined,
+  };
+  return reviewChange(input, deps.model, deps.limits);
+}
+
 /**
  * Handles one pull_request webhook: record the PR, run the review, store the
  * findings as "pending", and update the check run. Never throws; a failure is
@@ -144,35 +192,16 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
   const checkRunId = await createCheck(deps, repo, headSha, review.id);
 
   try {
-    const diff = await deps.github.getPullRequestDiff(repo, event.number);
-    // Read the rules from the base branch, not the PR head. Otherwise the
-    // author of a PR could change the rules that review their own PR.
-    const guidelines = await deps.github.getFileContent(
-      repo,
-      GUIDELINES_PATH,
-      event.pull_request.base.ref,
-    );
-    const fileContents = await fetchFileContexts(
-      deps.github,
-      repo,
-      diff,
-      headSha,
-      deps.limits.maxContextChars,
-    );
+    const result = await runReview(event, repo, deps);
 
-    const result = await reviewChange(
-      {
-        diff,
-        title: event.pull_request.title,
-        description: event.pull_request.body ?? undefined,
-        fileContents,
-        guidelines: guidelines ?? undefined,
-      },
-      deps.model,
-      deps.limits,
-    );
-
-    await completeReview(deps.db, review.id, result);
+    const stillCurrent = await completeReview(deps.db, review.id, result);
+    if (!stillCurrent) {
+      // A newer commit arrived while the model was working. Its own review
+      // owns the PR now; this one only needs its check run closed.
+      await updateCheck(deps.github, repo, checkRunId, { kind: "superseded" });
+      logEvent("review_superseded_while_running", { reviewId: review.id });
+      return;
+    }
     await updateCheck(deps.github, repo, checkRunId, {
       kind: "awaiting_reviewer",
       findingCount: result.findings.length,
@@ -187,8 +216,10 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
     });
   } catch (error) {
     const code = safeErrorCode(error);
-    await failReview(deps.db, review.id, code);
-    await updateCheck(deps.github, repo, checkRunId, { kind: "failed" });
+    const stillCurrent = await failReview(deps.db, review.id, code);
+    await updateCheck(deps.github, repo, checkRunId, {
+      kind: stillCurrent ? "failed" : "superseded",
+    });
     logEvent("review_failed", { reviewId: review.id, error: code });
   }
 }

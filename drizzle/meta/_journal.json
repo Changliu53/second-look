@@ -15,6 +15,13 @@
       "when": 1794528097974,
       "tag": "0001_add_access_control_and_data_loss",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794529272411,
+      "tag": "0002_add_pull_request_closed_at",
+      "breakpoints": true
     }
   ]
 }

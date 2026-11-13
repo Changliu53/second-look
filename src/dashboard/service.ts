@@ -20,7 +20,7 @@ import { buildReviewPayload } from "@/github/publish";
 import type { PullRequestRef } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
-import { canReviewRepository } from "./access";
+import { canReviewRepository } from "@/github/access";
 
 /**
  * Everything the dashboard can do, as plain functions. The Next.js pages and

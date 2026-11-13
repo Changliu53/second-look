@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import { getReviewDetail, listOpenReviews } from "@/db/queries";
 import { reviewPullRequest, type ReviewDeps } from "@/github/review-pull-request";
 import type { PullRequestEvent } from "@/github/webhook-payload";
+import { DiffTooLargeError } from "@/github/client";
 import { ReviewError, type ReviewModel } from "@/review/engine";
 import { FakeGitHub } from "./helpers/fake-github";
 import { FakeModel, VALID_SUMMARY } from "./helpers/fake-model";
@@ -178,6 +179,38 @@ describe("reviewPullRequest", () => {
     expect(model.prompts).toHaveLength(0);
     expect(github.checkRuns).toEqual([]);
     expect(await listOpenReviews(db)).toEqual([]);
+  });
+
+  it("keeps an old review superseded when a newer commit arrives while it is running", async () => {
+    const newer = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
+    // While the first review waits on the model, a push to the PR is handled.
+    const slow: ReviewModel = {
+      name: "slow",
+      generate: async () => {
+        await reviewPullRequest(event("sha-2"), deps(newer));
+        return { output: { summary: VALID_SUMMARY, findings: [FINDING] }, usage: { inputTokens: 1, outputTokens: 1 } };
+      },
+    };
+
+    await reviewPullRequest(event("sha-1"), deps(slow));
+
+    const open = await listOpenReviews(db);
+    expect(open.map((r) => r.review.headSha)).toEqual(["sha-2"]);
+    // The old commit's check is closed without blocking or passing anything.
+    const oldCheckId = github.checkRuns.find((c) => c.headSha === "sha-1")?.id;
+    const lastOldUpdate = github.checkRunUpdates.filter((u) => u.id === oldCheckId).at(-1);
+    expect(lastOldUpdate?.update).toMatchObject({ status: "completed", conclusion: "neutral" });
+  });
+
+  it("stores a too-large review when GitHub cannot render the diff", async () => {
+    github.diffError = new DiffTooLargeError();
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
+
+    await reviewPullRequest(event(), deps(model));
+
+    const detail = await onlyReview();
+    expect(detail.review.status).toBe("too_large");
+    expect(model.prompts).toHaveLength(0);
   });
 
   it("stores a too-large review without calling the model", async () => {

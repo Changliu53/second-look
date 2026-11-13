@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSignedInLogin } from "@/auth";
 import { listReviewsFor } from "@/dashboard/service";
-import type { ReviewListItem } from "@/db/queries";
+import { isStaleRunning, type ReviewListItem } from "@/db/queries";
 import { signInAction, signOutAction } from "./actions";
 import { dashboardDeps } from "./deps";
 
@@ -45,7 +45,9 @@ function ReviewRow({ item }: { item: ReviewListItem }) {
         </Link>
         <div className="text-xs text-slate-500">by {pullRequest.authorLogin}</div>
       </td>
-      <td className="py-2 pr-4">{STATUS_LABELS[review.status]}</td>
+      <td className="py-2 pr-4">
+        {isStaleRunning(review) ? "Review did not finish" : STATUS_LABELS[review.status]}
+      </td>
       <td className="py-2 pr-4 text-right">{item.pendingCount}</td>
       <td className="py-2 text-right">{item.confirmedCount}</td>
     </tr>

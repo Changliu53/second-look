@@ -87,6 +87,8 @@ export async function upsertPullRequest(
       set: {
         title: input.title,
         headSha: input.headSha,
+        // Any event that reaches this point means the PR is open (again).
+        closedAt: null,
         updatedAt: new Date(),
       },
     })
@@ -94,12 +96,39 @@ export async function upsertPullRequest(
   return firstRow(rows, "pull request upsert");
 }
 
-function isRetryable(review: Review, now: Date): boolean {
-  if (review.status === "failed") {
-    return true;
+/** Records that a PR was closed or merged, which hides it from the dashboard. */
+export async function markPullRequestClosed(
+  db: Database,
+  input: { githubRepoId: number; number: number },
+  now: Date = new Date(),
+): Promise<void> {
+  const repoRows = await db
+    .select({ id: repositories.id })
+    .from(repositories)
+    .where(eq(repositories.githubRepoId, input.githubRepoId));
+  const repository = repoRows[0];
+  if (!repository) {
+    return;
   }
+  await db
+    .update(pullRequests)
+    .set({ closedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(pullRequests.repositoryId, repository.id),
+        eq(pullRequests.number, input.number),
+      ),
+    );
+}
+
+/** True when a review has been "running" for longer than a review can take. */
+export function isStaleRunning(review: Review, now: Date = new Date()): boolean {
   const age = now.getTime() - review.createdAt.getTime();
   return review.status === "running" && age > STALE_REVIEW_MS;
+}
+
+function isRetryable(review: Review, now: Date): boolean {
+  return review.status === "failed" || isStaleRunning(review, now);
 }
 
 /**
@@ -189,12 +218,14 @@ export async function setCheckRunId(
  * status is flipped last, so a review marked "completed" always has all of its
  * findings. If we crash in between, the review stays "running", goes stale,
  * and startGithubReview clears the partial findings before retrying.
+ *
+ * Returns false when the review was superseded in the meantime.
  */
 export async function completeReview(
   db: Database,
   reviewId: number,
   result: ReviewResult,
-): Promise<void> {
+): Promise<boolean> {
   if (result.findings.length > 0) {
     await db.insert(findings).values(
       result.findings.map((finding) => ({
@@ -210,7 +241,10 @@ export async function completeReview(
       })),
     );
   }
-  await db
+  // Only a review that is still "running" may be completed. If a newer commit
+  // superseded it while the model was working, its status must stay
+  // "superseded"; otherwise the outdated review would reappear as open.
+  const updated = await db
     .update(reviews)
     .set({
       status: result.status,
@@ -220,18 +254,22 @@ export async function completeReview(
       outputTokens: result.usage.outputTokens,
       completedAt: new Date(),
     })
-    .where(eq(reviews.id, reviewId));
+    .where(and(eq(reviews.id, reviewId), eq(reviews.status, "running")))
+    .returning({ id: reviews.id });
+  return updated.length === 1;
 }
 
 export async function failReview(
   db: Database,
   reviewId: number,
   errorMessage: string,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const updated = await db
     .update(reviews)
     .set({ status: "failed", errorMessage, completedAt: new Date() })
-    .where(eq(reviews.id, reviewId));
+    .where(and(eq(reviews.id, reviewId), eq(reviews.status, "running")))
+    .returning({ id: reviews.id });
+  return updated.length === 1;
 }
 
 /** Logs a paste-mode review. Only token usage is kept, never the pasted code. */
@@ -268,7 +306,7 @@ export type ReviewListItem = {
   confirmedCount: number;
 };
 
-/** Reviews a human still has to act on: not published and not superseded. */
+/** Reviews a human still has to act on: open PR, not published, not superseded. */
 export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
   const rows = await db
     .select({
@@ -279,7 +317,13 @@ export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
     .from(reviews)
     .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
     .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
-    .where(and(isNull(reviews.publishedAt), ne(reviews.status, "superseded")))
+    .where(
+      and(
+        isNull(reviews.publishedAt),
+        ne(reviews.status, "superseded"),
+        isNull(pullRequests.closedAt),
+      ),
+    )
     .orderBy(desc(reviews.createdAt));
 
   if (rows.length === 0) {

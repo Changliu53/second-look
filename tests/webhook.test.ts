@@ -8,13 +8,14 @@ function sign(body: string, secret: string = SECRET): string {
   return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
-function pullRequestBody(action: string): string {
+function pullRequestBody(action: string, draft = false): string {
   return JSON.stringify({
     action,
     number: 7,
     pull_request: {
       title: "Add checkout",
       body: null,
+      draft,
       user: { login: "sam" },
       head: { sha: "abc123" },
       base: { ref: "main" },
@@ -62,12 +63,29 @@ describe("classifyWebhook", () => {
     expect(decision.kind).toBe("rejected");
   });
 
-  it.each(["opened", "synchronize", "reopened"])("reviews action %s", async (action) => {
+  it.each(["opened", "synchronize", "reopened", "ready_for_review"])("reviews action %s", async (action) => {
     const body = pullRequestBody(action);
     expect((await classify(body, sign(body))).kind).toBe("review");
   });
 
-  it.each(["closed", "edited", "labeled"])("ignores action %s", async (action) => {
+  it("does not review a draft until it is marked ready", async () => {
+    const draft = pullRequestBody("opened", true);
+    const ready = pullRequestBody("ready_for_review", false);
+
+    expect(await classify(draft, sign(draft))).toMatchObject({ kind: "ignored", reason: "draft pull request" });
+    expect((await classify(ready, sign(ready))).kind).toBe("review");
+  });
+
+  it("reports a closed pull request so it can be hidden from the dashboard", async () => {
+    const body = pullRequestBody("closed");
+    const decision = await classify(body, sign(body));
+
+    expect(decision.kind).toBe("closed");
+    if (decision.kind !== "closed") return;
+    expect(decision.event.number).toBe(7);
+  });
+
+  it.each(["edited", "labeled", "converted_to_draft"])("ignores action %s", async (action) => {
     const body = pullRequestBody(action);
     expect((await classify(body, sign(body))).kind).toBe("ignored");
   });

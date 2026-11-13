@@ -9,7 +9,7 @@ export type RepoRef = {
 export type CheckRunUpdate = {
   status: "in_progress" | "completed";
   /** Required by GitHub when status is "completed". */
-  conclusion?: "success" | "failure" | "action_required";
+  conclusion?: "success" | "failure" | "action_required" | "neutral";
   title: string;
   summary: string;
 };
@@ -36,6 +36,7 @@ export type ReviewPayload = {
  * Octokit details stay in one file.
  */
 export interface GitHubClient {
+  /** Throws DiffTooLargeError when GitHub refuses to render the diff. */
   getPullRequestDiff(repo: RepoRef, pullNumber: number): Promise<string>;
   /** Returns null when the file does not exist at that ref. */
   getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null>;
@@ -50,35 +51,55 @@ export interface GitHubClient {
   getPermission(repo: RepoRef, username: string): Promise<string>;
 }
 
+/** GitHub will not produce a diff above its own size limits (HTTP 406). */
+export class DiffTooLargeError extends Error {
+  readonly code = "diff_too_large";
+  constructor() {
+    super("GitHub could not produce a diff for this pull request.");
+    this.name = "DiffTooLargeError";
+  }
+}
+
 type InstallationOctokit = Awaited<ReturnType<App["getInstallationOctokit"]>>;
 
 const CHECK_NAME = "Second Look";
 
-function isNotFound(error: unknown): boolean {
+function hasStatus(error: unknown, status: number): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
     "status" in error &&
-    error.status === 404
+    error.status === status
   );
+}
+
+function isNotFound(error: unknown): boolean {
+  return hasStatus(error, 404);
 }
 
 class OctokitGitHubClient implements GitHubClient {
   constructor(private readonly octokit: InstallationOctokit) {}
 
   async getPullRequestDiff(repo: RepoRef, pullNumber: number): Promise<string> {
-    const response = await this.octokit.request(
-      "GET /repos/{owner}/{repo}/pulls/{pull_number}",
-      {
-        owner: repo.owner,
-        repo: repo.name,
-        pull_number: pullNumber,
-        mediaType: { format: "diff" },
-      },
-    );
-    // With the "diff" media type the body is plain text, but Octokit's types
-    // still describe the JSON response.
-    return response.data as unknown as string;
+    try {
+      const response = await this.octokit.request(
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}",
+        {
+          owner: repo.owner,
+          repo: repo.name,
+          pull_number: pullNumber,
+          mediaType: { format: "diff" },
+        },
+      );
+      // With the "diff" media type the body is plain text, but Octokit's
+      // types still describe the JSON response.
+      return response.data as unknown as string;
+    } catch (error) {
+      if (hasStatus(error, 406)) {
+        throw new DiffTooLargeError();
+      }
+      throw error;
+    }
   }
 
   async getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null> {

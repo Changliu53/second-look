@@ -1,4 +1,4 @@
-import type { GitHubClient, RepoRef } from "@/github/client";
+import type { GitHubClient, RepoRef } from "./client";
 
 /**
  * Signing in proves who you are, not what you may see. Any GitHub user can

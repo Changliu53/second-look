@@ -8,6 +8,7 @@ import {
 export type WebhookDecision =
   | { kind: "rejected"; httpStatus: 400 | 401; reason: string }
   | { kind: "ignored"; reason: string }
+  | { kind: "closed"; event: PullRequestEvent }
   | { kind: "review"; event: PullRequestEvent };
 
 /**
@@ -45,8 +46,14 @@ export async function classifyWebhook(input: {
     return { kind: "rejected", httpStatus: 400, reason: "unexpected payload shape" };
   }
 
+  if (parsed.data.action === "closed") {
+    return { kind: "closed", event: parsed.data };
+  }
   if (!isReviewableAction(parsed.data.action)) {
     return { kind: "ignored", reason: `action ${parsed.data.action}` };
+  }
+  if (parsed.data.pull_request.draft === true) {
+    return { kind: "ignored", reason: "draft pull request" };
   }
   return { kind: "review", event: parsed.data };
 }

@@ -55,7 +55,7 @@ A repository can add its own rules in `.second-look.md` (see [the one in this re
 
 ## Eval
 
-`eval/cases` holds thirteen small pull requests. Eleven have planted bugs, two are clean.
+`eval/cases` holds fourteen small pull requests. Eleven have planted bugs, three are clean code that should produce no findings.
 
 | Case | Planted problem |
 |---|---|
@@ -82,13 +82,22 @@ Latest run (`claude-opus-5-5`, 2026-11-12, one run):
 | | |
 |---|---|
 | Planted bugs found | 12 of 12 |
-| Findings counted as false positives | 6 |
+| Findings counted as false positives | 3 |
 | Extra nits | 3 |
 | Prompt-injection case | Bug still reported, risk level not lowered |
-| Clean cases | No critical or warning findings |
-| Tokens | 41,397 in, 10,952 out |
+| Clean cases | 2 of 3 with no critical or warning findings |
+| Tokens | 48,460 in, 9,700 out |
 
-The six "false positives" are unplanted but defensible concerns: `FirstAsync` throwing on a missing row, an empty search term matching everything, a sync job that can overlap itself. This is the main weakness the eval shows. The tool finds the planted bugs, and it also raises about one extra warning for every two pull requests. That noise is the reason a human confirms each finding before the author sees it. Output varies between runs, so treat these numbers as one sample.
+History:
+
+| Change | Found | False positives |
+|---|---|---|
+| First version of the prompt (13 cases) | 12 of 12 | 6 |
+| Added a rule for what counts as a warning, and a clean C# case (14 cases) | 12 of 12 | 3 |
+
+The rule that halved the false positives: a warning has to go wrong in normal use, and hardening advice (timeouts, pagination, overlapping jobs) is left out or reported as a nit. See `src/review/prompt.ts`.
+
+The three that remain: `FirstAsync` throwing on a missing row, an empty search term matching every user, and a correct EF Core migration that the reviewer second-guessed because the diff had no designer file. The last one is a plain mistake on clean code. This noise is the reason a human confirms each finding before the author sees it. Output varies between runs, so treat these numbers as one sample from each version, not a measurement with error bars.
 
 ## Setup
 
@@ -124,5 +133,5 @@ Design choices and the alternatives that were rejected are in [DECISIONS.md](DEC
 - A reviewer cannot add their own findings in the dashboard yet.
 - The dashboard asks GitHub for permissions on every page load, which is slow with many repositories.
 - Pull requests from authors without write access to the repository are not reviewed. This keeps strangers from spending the model budget on a public repository.
-- The eval is thirteen cases. It catches regressions; it is not a benchmark.
+- The eval is fourteen cases. It catches regressions; it is not a benchmark.
 - The reviewer has read about EF Core and tenancy patterns but does not know your platform. Invariants it should enforce have to be written in `.second-look.md`.

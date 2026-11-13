@@ -220,6 +220,8 @@ describe("who makes the fixes", () => {
     // Open by default: folded, it was missed on a real pull request.
     expect(payload.body).toContain("<details open>");
     expect(payload.body).toContain("````text");
+    // The author is not an engineer: the steps after copying are spelled out.
+    expect(payload.body).toContain("3. Push the changes to this same branch.");
     expect(payload.body).toContain("Problem: LOOP_BUG");
     expect(payload.body).toContain('my pull request "Add cart total"');
     // The footer still closes the review.

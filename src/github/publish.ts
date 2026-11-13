@@ -159,7 +159,11 @@ export function fixPromptSection(prompt: string): string {
   return [
     "### Fix these with your AI tool",
     "",
-    "Copy the text in the box below and paste it into the AI tool you used, in the same project. Hovering the box shows a copy button in its corner.",
+    "1. Copy the text in the box below. Hovering the box shows a copy button in its corner.",
+    "2. Paste it into the AI tool you used, in the same project, and let it make the changes.",
+    "3. Push the changes to this same branch. Do not open a new pull request.",
+    "",
+    "Second Look reviews the new commit by itself and checks each of the problems below again. The reviewer then tells you whether anything is left.",
     "",
     "<details open>",
     "<summary>Fix prompt</summary>",

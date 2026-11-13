@@ -158,3 +158,18 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What:** `j`, `k`, `n`, `c`, `r`, `e` find findings by `data-finding` and press controls marked `data-action`.
 **Why:** The dashboard uses server-action forms and the sandbox uses client state. One small handler serves both without either knowing about the other, and the dashboard still works with JavaScript off.
 **Rejected:** Converting the dashboard to client state so shortcuts could call handlers directly.
+
+## 30. A superseded review cannot complete
+**What:** `completeReview` and `failReview` only update a review whose status is still `running`. If a newer commit superseded it while the model was working, the result is discarded and the old commit's check closes as `neutral`.
+**Why:** Two pushes a few seconds apart start two reviews. Without the condition, the older one finished later and set its status back to `completed`, so an outdated review showed up as open next to the current one.
+**Rejected:** Cancelling the older model call. There is no handle on a call running in another serverless invocation, and the conditional update is one line of SQL.
+
+## 31. Closed pull requests are hidden, not deleted
+**What:** A `closed` webhook sets `closed_at` on the pull request. The dashboard lists only reviews of open pull requests. Any later event for the same pull request clears it.
+**Why:** Merged and abandoned pull requests otherwise sit in "waiting for your decision" forever. Keeping the rows means a reopened pull request shows its review again without paying for a new one.
+**Rejected:** Marking the reviews superseded on close. A reopen of the same commit would then find a superseded review and never run or show one.
+
+## 32. Model text is neutralized before it goes to GitHub
+**What:** Finding text and the summary pass through `neutralizeForGithub`: `@name` becomes inline code and `![` is escaped. The reviewer's own note is posted as written.
+**Why:** The code under review shapes what the model writes, and GitHub acts on what is posted. A pull request could otherwise get the reviewer to notify users or teams, or to embed an image that loads from someone's server for every reader. A human confirms each finding, but a mention buried in a paragraph is easy to miss.
+**Rejected:** Asking the model not to write mentions. That is the same channel the attack uses.

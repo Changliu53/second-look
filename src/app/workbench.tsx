@@ -8,7 +8,7 @@ import { DiffFile } from "@/components/review/diff-file";
 import { FindingOutline } from "@/components/review/finding-outline";
 import { FindingKeys } from "@/components/review/finding-keys";
 import { Logo, NavLinks } from "@/components/site-header";
-import { BUTTON, BUTTON_PRIMARY, INPUT, SECTION_LABEL } from "@/components/ui";
+import { BUTTON, BUTTON_PRIMARY, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { Finding } from "@/db/schema";
 import type { Example } from "@/examples/examples";
@@ -187,6 +187,12 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
               placeholder="Paste a function, a file, or a git diff"
               aria-label="Code or diff"
               onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                // Cmd+Enter (Ctrl+Enter on Windows and Linux) submits, as in most editors.
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
             />
             <button type="submit" disabled={request.phase === "loading"} className={`${BUTTON_PRIMARY} w-full`}>
               {request.phase === "loading" ? (
@@ -198,6 +204,9 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
                 "Review with the model"
               )}
             </button>
+            <p className="text-xs text-ink-soft">
+              <kbd className={KBD}>⌘</kbd> <kbd className={KBD}>Enter</kbd> also submits.
+            </p>
             {request.phase === "error" && (
               <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900">
                 {request.message}
@@ -213,7 +222,9 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
       </aside>
 
       <div id="result" className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto">
-        {review ? (
+        {request.phase === "loading" ? (
+          <Reviewing />
+        ) : review ? (
           <ResultPane
             review={review}
             findings={findings}
@@ -243,6 +254,35 @@ const STEPS = [
     body: "One GitHub review with only what you confirmed, a plain-English summary, and a check that blocks the merge while a critical finding stands.",
   },
 ];
+
+/** Shown in the result pane while a live review is running. */
+function Reviewing() {
+  const steps = [
+    "Wrapping your code in a section the model treats as data, not instructions",
+    "Checking it against the review rules",
+    "Validating the answer against the findings schema",
+  ];
+  return (
+    <div role="status" className="mx-auto flex h-full max-w-xl flex-col justify-center gap-5 p-8">
+      <h2 className="flex items-center gap-3 text-xl font-semibold tracking-tight">
+        <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900 motion-reduce:animate-none" />
+        Reading your code
+      </h2>
+      <p className="text-sm leading-relaxed text-slate-600">
+        This is one model call and usually takes 20 to 40 seconds. The built-in examples are
+        instant because their results were saved from an earlier real run.
+      </p>
+      <ul className="space-y-2 text-sm text-ink-soft">
+        {steps.map((step) => (
+          <li key={step} className="flex gap-2">
+            <span aria-hidden>·</span>
+            {step}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function EmptyState() {
   return (

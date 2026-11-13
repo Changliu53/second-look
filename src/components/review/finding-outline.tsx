@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/components/badges";
+import { InlineText } from "@/components/markdown-lite";
 import type { Finding } from "@/db/schema";
 import { publishedText } from "@/github/publish";
 import { lineLabel } from "./finding-view";
@@ -32,7 +33,9 @@ export function FindingOutline({ findings }: { findings: Finding[] }) {
             <span className="w-[4.5rem] shrink-0">
               <SeverityBadge severity={finding.severity} />
             </span>
-            <span className="min-w-0 flex-1 truncate">{publishedText(finding).explanation}</span>
+            <span className="min-w-0 flex-1 truncate">
+              <InlineText text={publishedText(finding).explanation} />
+            </span>
             <span className="hidden shrink-0 font-mono text-xs text-ink-soft sm:inline">
               {lineLabel(finding)}
             </span>

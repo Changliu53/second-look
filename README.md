@@ -51,6 +51,7 @@ flowchart LR
 
 ## For a team
 
+- **Reviewers are told.** An optional webhook (Slack-compatible) posts when a review is waiting: which pull request, how many findings by severity, and a link. No code and no finding text.
 - **Several reviewers.** The dashboard says who is going through each review ("kim is going through it, 4 min ago"), so two people do not take the same one, and filters by repository.
 - **An audit trail.** Every confirm, reject, undo, rewrite, added and removed finding is recorded with who and when, and listed under the review as its activity. The insights page downloads every decision in a period as CSV (no code, no finding text, and safe to open in a spreadsheet).
 - **Nothing to fix.** Rejecting every finding turns publishing into "Approve: no changes needed". The author gets a one-line review and the check passes.

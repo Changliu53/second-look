@@ -3,6 +3,7 @@ import { getAppUrl, getLimits, getModelName } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { AnthropicReviewModel } from "@/review/anthropic-model";
 import type { GitHubClient } from "./client";
+import { webhookNotifier } from "@/notify/review-ready";
 import { reviewPullRequest } from "./review-pull-request";
 import type { PullRequestEvent } from "./webhook-payload";
 
@@ -32,6 +33,7 @@ export function startReview(
       limits: getLimits(),
       appUrl: getAppUrl(),
       monthlyTokenBudget: getLimits().monthlyTokenBudget,
+      notify: webhookNotifier(process.env.NOTIFY_WEBHOOK_URL),
     },
     { onClaimed: claim },
   ).catch((error: unknown) => {

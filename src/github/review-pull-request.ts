@@ -27,6 +27,7 @@ import { publishedText } from "./publish";
 import { canReviewRepository } from "./access";
 import { checkRunFor, type CheckState } from "./check-run";
 import { isOverBudget } from "@/lib/budget";
+import { notifyReviewReady, type Notifier } from "@/notify/review-ready";
 
 /** Stored as the review's error when the monthly budget stopped it. */
 export const BUDGET_REACHED = "budget_reached";
@@ -46,6 +47,8 @@ export type ReviewDeps = {
   appUrl: string;
   /** Model tokens all reviews may use per calendar month. Null or absent: no limit. */
   monthlyTokenBudget?: number | null;
+  /** Tells the team a review is waiting. Absent: nobody is told. */
+  notify?: Notifier | null;
 };
 
 /**
@@ -306,6 +309,22 @@ export async function reviewPullRequest(
       findingCount: result.findings.length,
       tooLarge: result.status === "too_large",
     });
+    const count = (severity: string) =>
+      result.findings.filter((finding) => finding.severity === severity).length;
+    await notifyReviewReady(
+      deps.notify,
+      {
+        repository: `${repo.owner}/${repo.name}`,
+        pullNumber: event.number,
+        title: event.pull_request.title,
+        author: authorLogin,
+        critical: count("critical"),
+        warning: count("warning"),
+        nit: count("nit"),
+        reviewUrl: `${deps.appUrl}/dashboard/reviews/${review.id}`,
+      },
+      review.id,
+    );
     logEvent("review_completed", {
       reviewId: review.id,
       status: result.status,

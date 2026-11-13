@@ -81,6 +81,7 @@ If nothing happens, open the App's **Advanced** tab on GitHub. It lists recent w
 ## Running it for a team
 
 - **Monitoring.** `GET /api/health` answers 200 `{"ok":true}` when the app can reach its database and 503 otherwise. Point an uptime monitor at it. It needs no login and reveals nothing else.
+- **Telling reviewers.** Set `NOTIFY_WEBHOOK_URL` to an https webhook that accepts `{"text": "..."}` (a Slack incoming webhook works). When a first pass finishes, the channel gets the pull request's title, number and author, the number of findings by severity, and a link to the review. No code and no finding text is sent. If the webhook fails, the review is unaffected.
 - **A review that failed.** Open it in the dashboard and click **Run the review again**. It costs one model call. A review that finished cannot be run again from there.
 - **Migrations.** Run `npm run db:migrate` before deploying code that needs a new migration. Migrations are additive where possible; each one's commit says so.
 - **Access.** A reviewer sees a repository's reviews when they have write access to it on GitHub. Answers are remembered for one minute, so removing someone takes up to a minute to apply.

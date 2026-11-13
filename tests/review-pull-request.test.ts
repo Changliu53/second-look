@@ -134,6 +134,34 @@ describe("reviewPullRequest", () => {
     expect(promptsAtClaim).toEqual([0]);
   });
 
+  it("tells the team a review is waiting, with counts and no finding text", async () => {
+    const notices: unknown[] = [];
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });
+
+    await reviewPullRequest(event(), { ...deps(model), notify: async (notice) => void notices.push(notice) });
+
+    const detail = await onlyReview();
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      pullNumber: event().number,
+      reviewUrl: `https://secondlook.test/dashboard/reviews/${detail.review.id}`,
+    });
+    expect(JSON.stringify(notices[0])).not.toContain(FINDING.explanation);
+  });
+
+  it("still completes the review when the notification fails", async () => {
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });
+
+    await reviewPullRequest(event(), {
+      ...deps(model),
+      notify: async () => {
+        throw new Error("chat is down");
+      },
+    });
+
+    expect((await onlyReview()).review.status).toBe("completed");
+  });
+
   it("calls no model once the monthly budget is used up, and says so on the check", async () => {
     await db.insert(reviews).values({ source: "paste", status: "completed", inputTokens: 900, outputTokens: 200 });
     const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });

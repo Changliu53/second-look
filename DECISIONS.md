@@ -315,3 +315,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Neutral, not failure or action required:** the code was not found wanting, it was not read. A team that requires the check must not be unable to merge anything until the month turns over. The dashboard says plainly that the review was skipped, so a person knows to read it.
 **Limit:** The check happens before a call, so the last review of a month can go over by one review's tokens. Stopping a review half-way would cost the tokens and give nothing.
 
+## 59. An optional notification when a review is waiting
+**What:** With `NOTIFY_WEBHOOK_URL` set, a first pass that finishes posts one message to that webhook: repository, pull request title, number and author, findings counted by severity, and a link to the review. The format is `{"text": ...}`, which Slack's incoming webhooks and most chat tools accept.
+**Why:** A review that waits holds a pull request's check in progress, and the only way to know one was waiting was to look at the dashboard. The insights page measures that wait; this shortens it.
+**What is not sent:** code and the text of findings. A chat channel is read by more people than the repository is. The title is written by the pull request's author, so it is escaped and cut to 200 characters: it cannot mention a channel, add a link, or flood the channel.
+**Details:** https only. Five-second timeout. A failure is logged and ignored, so a chat outage never fails a review.
+

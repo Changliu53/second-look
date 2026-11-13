@@ -52,6 +52,15 @@ export default function DataPage() {
           </p>
         </Section>
 
+        <Section title="Sent to a chat channel, if one is configured">
+          <p>
+            A team can set a webhook so reviewers are told when a review is waiting. The message
+            holds the repository, the pull request&apos;s title, number and author, the number of
+            findings by severity, and a link. It never holds code or the text of a finding. This
+            deployment has no webhook configured unless its operator has added one.
+          </p>
+        </Section>
+
         <Section title="Kept in the database">
           <ul className={LIST}>
             <li>Repository owner and name, pull request number, title, and author&apos;s GitHub login, and the commits reviewed.</li>

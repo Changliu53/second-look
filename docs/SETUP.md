@@ -65,7 +65,7 @@ To do it by hand instead, create an app at https://github.com/settings/apps with
 
 ## 6. Finish the Vercel configuration
 
-1. In Vercel, open **Settings**, **Environment Variables**, click **Add Environment Variable**, and paste the five new lines from `.env.local` into the Key field. Vercel splits them into five variables. Add `APP_URL` with your Vercel URL (no trailing slash). Optionally add `DEMO_PULL_REQUEST` (for example `your-name/your-repo#2`) to show one published review on the public `/demo` page.
+1. In Vercel, open **Settings**, **Environment Variables**, click **Add Environment Variable**, and paste the five new lines from `.env.local` into the Key field. Vercel splits them into five variables. Add `APP_URL` with your Vercel URL (no trailing slash). Optionally add `EXAMPLE_PULL_REQUESTS` (for example `your-name/your-repo#2`, or several separated by commas) to show published reviews on the public `/example` page.
 2. Open **Deployments**, click the menu on the latest deployment, and choose **Redeploy** so the new variables take effect.
 
 ## 7. Try it

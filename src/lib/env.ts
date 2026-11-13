@@ -66,19 +66,27 @@ export function requireEnv(
 
 export type PullRequestRef = { owner: string; name: string; number: number };
 
+const PULL_REQUEST_REF = /^([\w.-]+)\/([\w.-]+)#(\d+)$/;
+
 /**
- * The pull request shown on the public /demo page, written as
- * "owner/repo#number". Point it at a public repository only: the page shows
- * that PR's published review to anyone, signed in or not.
+ * The pull requests shown on the public /example page, written as
+ * "owner/repo#number" and separated by commas. Point it at public
+ * repositories only: the page shows their published reviews to anyone,
+ * signed in or not. Entries that do not parse are ignored.
+ *
+ * EXAMPLE_PULL_REQUESTS is the current name. DEMO_PULL_REQUEST is the older
+ * one and is still read when the new one is not set.
  */
-export function getDemoPullRequest(
+export function getExamplePullRequests(
   env: EnvSource = process.env,
-): PullRequestRef | null {
-  const match = /^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(
-    env.DEMO_PULL_REQUEST?.trim() ?? "",
-  );
-  if (!match) {
-    return null;
+): PullRequestRef[] {
+  const refs: PullRequestRef[] = [];
+  const configured = env.EXAMPLE_PULL_REQUESTS?.trim() || env.DEMO_PULL_REQUEST || "";
+  for (const part of configured.split(",")) {
+    const match = PULL_REQUEST_REF.exec(part.trim());
+    if (match) {
+      refs.push({ owner: match[1]!, name: match[2]!, number: Number(match[3]) });
+    }
   }
-  return { owner: match[1]!, name: match[2]!, number: Number(match[3]) };
+  return refs;
 }

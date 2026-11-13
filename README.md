@@ -9,10 +9,10 @@ In small teams, people who are not engineers now ship features written by AI too
 Everything below works without an account.
 
 - **Playground:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then open the second tab to choose who fixes it and see what gets posted. Or paste your own code.
-- **A real pull request, three rounds, read-only:** https://second-look-review.vercel.app/example. Sent back to the author, partly fixed, taken over by the reviewer, passed. The same pull request on GitHub: [#2](https://github.com/Changliu53/second-look/pull/2).
-- **The tool reviewing its own code:** pull requests [#3](https://github.com/Changliu53/second-look/pull/3) to [#6](https://github.com/Changliu53/second-look/pull/6). It found a flaw in its own eval, a setup script that failed on the documented path, and a crash that the build and the tests had both missed.
+- **Real pull requests after review, read-only:** https://second-look-review.vercel.app/example. Two pull requests on a sample C# service, each through two rounds. On GitHub: [CSV export](https://github.com/Changliu53/fieldops-platform-sample/pull/1), sent back to the author with a fix prompt, and [column rename](https://github.com/Changliu53/fieldops-platform-sample/pull/2), taken over by the reviewer.
+- **The tool reviewing its own code:** pull requests [#3](https://github.com/Changliu53/second-look/pull/3) to [#7](https://github.com/Changliu53/second-look/pull/7) in this repository. It found a flaw in its own eval, a setup script that failed on the documented path, and a crash that the build and the tests had both missed.
 
-To run the whole flow yourself on a sample repository, with real pull requests, see [scripts/walkthrough](scripts/walkthrough/README.md).
+To run the whole flow yourself with real pull requests, see [scripts/walkthrough](scripts/walkthrough/README.md). It targets [fieldops-platform-sample](https://github.com/Changliu53/fieldops-platform-sample), a small multi-tenant ASP.NET Core service.
 
 ## How it works
 

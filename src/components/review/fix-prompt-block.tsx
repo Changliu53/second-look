@@ -1,12 +1,16 @@
 import { CopyButton } from "@/components/copy-button";
 import { SECTION_LABEL } from "@/components/ui";
 
-/** A fix prompt shown as copyable text. */
+/**
+ * A fix prompt shown as copyable text. Open by default: it is text that is
+ * about to be sent to someone, so the reviewer should see it without asking.
+ * Long prompts scroll inside the block.
+ */
 export function FixPromptBlock({
   title,
   hint,
   prompt,
-  open = false,
+  open = true,
 }: {
   title: string;
   hint: string;

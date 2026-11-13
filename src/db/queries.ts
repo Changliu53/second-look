@@ -485,11 +485,16 @@ export async function listPublishedReviews(
     .where(
       // Keep a review only if it is the newest published one of its pull
       // request. Done in SQL so the database returns at most `limit` rows,
-      // however many pull requests have been reviewed.
-      sql`${reviews.publishedAt} = (
-        select max(newer.published_at)
+      // however many pull requests have been reviewed. Compared by id, with
+      // the id as tie-break, so two rounds published in the same millisecond
+      // still give one row.
+      sql`${reviews.id} = (
+        select newer.id
         from reviews newer
         where newer.pull_request_id = ${reviews.pullRequestId}
+          and newer.published_at is not null
+        order by newer.published_at desc, newer.id desc
+        limit 1
       )`,
     )
     .orderBy(desc(reviews.publishedAt))

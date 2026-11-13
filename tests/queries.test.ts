@@ -406,6 +406,26 @@ describe("recently published", () => {
     expect(published[0]?.review.headSha).toBe("sha-2");
   });
 
+  it("still lists it once when two rounds were published at the same instant", async () => {
+    // This happened in this test suite itself: two publishes in one
+    // millisecond, and the pull request was listed twice.
+    const { pullRequest } = await seedPullRequest(db);
+    for (const sha of ["sha-1", "sha-2"]) {
+      const round = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: sha });
+      await completeReview(db, round.review.id, completedResult(0));
+      await claimReviewForPublish(db, round.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+    }
+    await db
+      .update(reviews)
+      .set({ publishedAt: new Date("2026-01-01T00:00:00Z") })
+      .where(eq(reviews.pullRequestId, pullRequest.id));
+
+    const published = await listPublishedReviews(db, 10);
+
+    expect(published).toHaveLength(1);
+    expect(published[0]?.review.headSha).toBe("sha-2");
+  });
+
   it("returns at most the limit, newest pull request first", async () => {
     const repository = await upsertRepository(db, { githubRepoId: 9, installationId: 1, owner: "acme", name: "shop" });
     for (const number of [1, 2, 3]) {

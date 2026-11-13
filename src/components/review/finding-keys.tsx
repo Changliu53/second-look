@@ -122,6 +122,24 @@ function handleKey(event: KeyboardEvent): void {
   }
 }
 
+/**
+ * A card the reviewer clicks in becomes the one the keys act on. Without
+ * this, opening a card with the mouse and then pressing r did nothing,
+ * because only j, k and n selected a card.
+ */
+function handleClick(event: MouseEvent): void {
+  if (!(event.target instanceof HTMLElement)) {
+    return;
+  }
+  const card = event.target.closest<HTMLElement>("[data-finding]");
+  if (!card) {
+    return;
+  }
+  for (const other of findings()) {
+    other.dataset.active = String(other === card);
+  }
+}
+
 /** If the URL points at a finding (after an action), make it the active one. */
 function activateFromHash(): void {
   const id = window.location.hash.replace("#finding-", "");
@@ -138,7 +156,14 @@ export function FindingKeys() {
   useEffect(() => {
     activateFromHash();
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("click", handleClick);
+    // The outline at the top links to findings by their id.
+    window.addEventListener("hashchange", activateFromHash);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("hashchange", activateFromHash);
+    };
   }, []);
 
   return (

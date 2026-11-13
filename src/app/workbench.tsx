@@ -445,30 +445,43 @@ function ResultPane({
     setComposing(null);
   }
 
-  const tabClass = (name: Tab) =>
-    `rounded-md px-2.5 py-1 text-sm font-medium transition ${
-      tab === name ? "bg-slate-900 text-white" : "text-ink-soft hover:bg-slate-100 hover:text-ink"
-    }`;
+  // Step one is done when nothing is left to decide; step two when published.
+  const reviewDone = findings.length > 0 && counts.pending === 0;
 
   return (
     <div className="animate-rise-in">
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-edge bg-surface-raised/95 px-5 py-2.5 backdrop-blur">
-        <div className="flex gap-1" role="tablist">
-          <button role="tab" aria-selected={tab === "review"} className={tabClass("review")} onClick={() => onTab("review")}>
-            1. Your review
-          </button>
-          <ReasonTip reason={blocked} side="bottom">
-            <button
-              role="tab"
-              aria-selected={tab === "author"}
-              disabled={blocked !== null}
-              className={`${tabClass("author")} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-ink-soft`}
-              onClick={() => onTab("author")}
-            >
-              2. Publish
-            </button>
-          </ReasonTip>
-        </div>
+        {/* Two steps in order, not two tabs: the second opens once the first
+            is finished, and the line between them fills in when it is. */}
+        <nav aria-label="Steps of a review">
+          <ol className="flex items-center gap-1.5">
+            <li>
+              <Step
+                number={1}
+                label="Review findings"
+                current={tab === "review"}
+                done={reviewDone || published !== null}
+                onClick={() => onTab("review")}
+              />
+            </li>
+            <li
+              aria-hidden
+              className={`h-0.5 w-8 rounded-full transition-colors ${reviewDone || published ? "bg-green-700" : "bg-slate-300"}`}
+            />
+            <li>
+              <ReasonTip reason={blocked} side="bottom">
+                <Step
+                  number={2}
+                  label="Publish"
+                  current={tab === "author"}
+                  done={published !== null}
+                  disabled={blocked !== null}
+                  onClick={() => onTab("author")}
+                />
+              </ReasonTip>
+            </li>
+          </ol>
+        </nav>
         <p className="text-xs text-ink-soft">
           <span className="font-semibold text-ink">{counts.pending}</span> pending
           <span className="mx-1.5">·</span>
@@ -617,6 +630,43 @@ function ResultPane({
         )}
       </div>
     </div>
+  );
+}
+
+/** One step in the playground's two-step bar. */
+function Step({
+  number,
+  label,
+  current,
+  done,
+  disabled = false,
+  onClick,
+}: {
+  number: number;
+  label: string;
+  current: boolean;
+  done: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const circle = done
+    ? "border-green-700 bg-green-700 text-white"
+    : current
+      ? "border-slate-900 bg-slate-900 text-white"
+      : "border-slate-300 text-ink-soft";
+  return (
+    <button
+      type="button"
+      aria-current={current ? "step" : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+    >
+      <span className={`grid size-5 place-items-center rounded-full border text-[0.6875rem] font-semibold ${circle}`}>
+        {done ? "✓" : number}
+      </span>
+      <span className={current ? "font-semibold text-ink" : "text-ink-soft"}>{label}</span>
+    </button>
   );
 }
 
@@ -802,7 +852,6 @@ function AuthorView({
           title="Fix prompt, included in the review"
           hint="The author pastes this into their AI tool."
           prompt={parts.fixPrompt}
-          open
         />
       )}
       {engineerPrompt && (
@@ -810,7 +859,6 @@ function AuthorView({
           title="Prompt for your coding agent"
           hint="Shown to you in the dashboard after you publish. The author does not get it."
           prompt={engineerPrompt}
-          open
         />
       )}
 

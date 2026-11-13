@@ -195,11 +195,12 @@ describe("who makes the fixes", () => {
     pullRequestTitle: "Add cart total",
   };
 
-  it("sends the author a fix prompt, folded away and fenced, when they make the fixes", () => {
+  it("sends the author a fix prompt, fenced and shown open, when they make the fixes", () => {
     const payload = buildReviewPayload({ ...base, resolution: "author_fixes", findings: [finding({ explanation: "LOOP_BUG" })] });
 
-    expect(payload.body).toContain("**Fixing these with an AI tool**");
-    expect(payload.body).toContain("<details>");
+    expect(payload.body).toContain("### Fix these with your AI tool");
+    // Open by default: folded, it was missed on a real pull request.
+    expect(payload.body).toContain("<details open>");
     expect(payload.body).toContain("````text");
     expect(payload.body).toContain("Problem: LOOP_BUG");
     expect(payload.body).toContain('my pull request "Add cart total"');
@@ -223,7 +224,7 @@ describe("who makes the fixes", () => {
   it("has no fix prompt when nothing was confirmed", () => {
     const payload = buildReviewPayload({ ...base, findings: [finding({ status: "rejected" })] });
 
-    expect(payload.body).not.toContain("Fixing these with an AI tool");
+    expect(payload.body).not.toContain("Fix these with your AI tool");
     expect(fixPromptFor("t", [finding({ status: "rejected" })], "author")).toBeNull();
   });
 
@@ -241,7 +242,7 @@ describe("who makes the fixes", () => {
 
     expect(payload.body.startsWith("**lee is taking this pull request over")).toBe(true);
     expect(payload.body).toContain("You do not need to change anything.");
-    expect(payload.body).not.toContain("Fixing these with an AI tool");
+    expect(payload.body).not.toContain("Fix these with your AI tool");
     expect(payload.body).not.toContain("Please double check");
     // The findings are still posted inline, as an explanation.
     expect(payload.comments).toHaveLength(1);

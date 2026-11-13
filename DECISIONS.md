@@ -240,3 +240,19 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Rejected:** A shared demo login. It would make every decision in the audit trail belong to nobody.
 **Limit:** A collaborator can push to the sample repository's main branch and can start reviews, each of which is a model call. Removing them from the repository ends both.
 
+## 45. The playground follows a real review step by step
+**What:** The playground has four steps in a bar, in the order they happen: the pull request arrives and the first pass runs, the reviewer goes through the findings, publishes, and sees what the author gets. A step opens when the one before it is finished and says why when it cannot be opened. It replaces decision 43's two-step layout.
+**Why:** The first version opened on the findings and put publishing in a second tab. Someone who had then used the real dashboard said the two did not match: the real thing has an arriving pull request, a running first pass, a publish form, and a result on GitHub, in that order.
+**Details:** Each step uses what the real app uses: the dashboard's progress panel, `checkRunFor` for the check text, the publish form's fields, and `buildReviewParts` for what is posted. For a saved example the first pass is replayed in about three seconds, and the page says it is a replay. The second round is not simulated; the last step links to real pull requests that went through one.
+**Rejected:** Making up a second-round result for each example. The examples are saved output of real runs, and an invented follow-up next to them would not be.
+
+## 46. The fix prompt is shown open, in the dashboard and on GitHub
+**What:** The fix prompt is expanded by default wherever it appears. In the GitHub review it has its own heading and the `details` element is open.
+**Why:** It was folded in both places. A reviewer who had just published looked for it on the pull request and did not find it. Text that is about to be sent, or that the author is meant to act on, should not need a click to be seen.
+**Cost:** The review body is longer. The prompt stays in a `details` element so the reader can fold it.
+
+## 47. The page says when the last finding is decided
+**What:** The decision that leaves no finding pending shows a short message with a link to publish. "Next pending" is disabled from then on. In the dashboard the server action reports that moment (`allDecided`) and the page reads it from the URL once.
+**Why:** After the last decision nothing on the page changed except a number, and the reviewer had to notice that the count had reached zero to know they were done.
+**Details:** Changing an earlier decision does not show the message again, because nothing was finished by it.
+

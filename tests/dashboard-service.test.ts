@@ -177,6 +177,39 @@ describe("editFindingFor", () => {
   });
 });
 
+describe("deciding the last pending finding", () => {
+  it("is reported only by the decision that leaves nothing pending", async () => {
+    const [first, second] = await findings();
+
+    const notYet = await decideFindingFor(first!.id, { status: "confirmed" }, "lee", deps);
+    const last = await decideFindingFor(second!.id, { status: "rejected", rejectionReason: null }, "lee", deps);
+
+    expect(notYet).toEqual({ ok: true });
+    expect(last).toEqual({ ok: true, allDecided: true });
+  });
+
+  it("is not reported when an earlier decision is changed or undone", async () => {
+    const [first, second] = await findings();
+    await decideFindingFor(first!.id, { status: "confirmed" }, "lee", deps);
+    await decideFindingFor(second!.id, { status: "confirmed" }, "lee", deps);
+
+    const changed = await decideFindingFor(second!.id, { status: "rejected", rejectionReason: null }, "lee", deps);
+    const undone = await decideFindingFor(second!.id, { status: "pending" }, "lee", deps);
+
+    expect(changed).toEqual({ ok: true });
+    expect(undone).toEqual({ ok: true });
+  });
+
+  it("is reported when an edit confirms the last one", async () => {
+    const [first, second] = await findings();
+    await decideFindingFor(first!.id, { status: "rejected", rejectionReason: null }, "lee", deps);
+
+    const edit = await editFindingFor(second!.id, { explanation: "In my words", suggestedFix: "" }, "lee", deps);
+
+    expect(edit).toEqual({ ok: true, allDecided: true });
+  });
+});
+
 describe("publishReviewFor", () => {
   it("refuses to publish while any finding is still pending", async () => {
     const [first] = await findings();
@@ -233,7 +266,7 @@ describe("publishReviewFor", () => {
     expect(outcome).toEqual({ ok: true });
     const body = github.reviews[0]?.payload.body ?? "";
     expect(body).toContain("lee is taking this pull request over");
-    expect(body).not.toContain("Fixing these with an AI tool");
+    expect(body).not.toContain("Fix these with your AI tool");
     expect((await getReviewDetail(db, reviewId))?.review.resolution).toBe("reviewer_takes_over");
     expect(github.lastCheckUpdate()?.summary).toContain("lee has taken this pull request over");
   });

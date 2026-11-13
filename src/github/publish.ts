@@ -148,14 +148,21 @@ export function fixPromptFor(
 // the fence early. Any longer run inside the prompt is shortened to three.
 const FENCE = "````";
 
-/** The fix prompt as it appears in the GitHub review: folded, in a code fence. */
+/**
+ * The fix prompt as it appears in the GitHub review: under its own heading,
+ * in a code fence, and open. It was folded at first, and a reviewer looking
+ * for it on the pull request did not find it. It can still be folded by the
+ * reader, since it is long.
+ */
 export function fixPromptSection(prompt: string): string {
   const safe = prompt.replace(/`{4,}/g, "```");
   return [
-    "**Fixing these with an AI tool**",
+    "### Fix these with your AI tool",
     "",
-    "<details>",
-    "<summary>Open this, copy the text, and paste it into the AI tool you used, in the same project.</summary>",
+    "Copy the text in the box below and paste it into the AI tool you used, in the same project. Hovering the box shows a copy button in its corner.",
+    "",
+    "<details open>",
+    "<summary>Fix prompt</summary>",
     "",
     `${FENCE}text`,
     safe,

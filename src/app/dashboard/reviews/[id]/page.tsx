@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getSignedInLogin } from "@/auth";
+import { AllDecidedToast } from "@/components/all-decided-toast";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { CopyButton } from "@/components/copy-button";
 import { FindingKeys } from "@/components/review/finding-keys";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; compose?: string }>;
+  searchParams: Promise<{ error?: string; compose?: string; decided?: string }>;
 };
 
 /** Why the review cannot be changed any more, or null if it can. */
@@ -76,7 +77,7 @@ function ProgressBar({ detail, locked }: { detail: ReviewDetail; locked: boolean
           )}
         </p>
         <div className="ml-auto flex items-center gap-4">
-          {!locked && <FindingKeys />}
+          {!locked && <FindingKeys pending={counts.pending} />}
           {!locked && <PublishShortcut pending={counts.pending} />}
         </div>
       </div>
@@ -283,6 +284,11 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
       </SiteHeader>
       {isRunning && <AutoRefresh seconds={3} />}
       {detail.findings.length > 0 && <ProgressBar detail={detail} locked={locked} />}
+      {/* Set by the action that decided the last pending finding. Checked
+          against the data too, so a stale or hand-typed URL announces nothing. */}
+      {query.decided === "all" && !locked && countByStatus(detail.findings).pending === 0 && (
+        <AllDecidedToast />
+      )}
 
       <main className="mx-auto max-w-5xl px-5 py-8">
         {error && (

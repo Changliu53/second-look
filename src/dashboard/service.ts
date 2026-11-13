@@ -63,7 +63,13 @@ export const ACTION_ERRORS = {
 
 export type ActionErrorCode = keyof typeof ACTION_ERRORS;
 
-export type ActionResult = { ok: true } | { ok: false; error: ActionErrorCode };
+export type ActionResult =
+  | {
+      ok: true;
+      /** Set when this action decided the review's last pending finding. */
+      allDecided?: true;
+    }
+  | { ok: false; error: ActionErrorCode };
 
 const fail = (error: ActionErrorCode): ActionResult => ({ ok: false, error });
 
@@ -197,6 +203,16 @@ async function loadFindingFor(findingId: number, login: string, deps: DashboardD
   return loaded ? { finding, detail: loaded.detail } : null;
 }
 
+/**
+ * True when `findingId` is pending and is the only pending finding left, so
+ * deciding it finishes the review. The page then tells the reviewer they can
+ * publish. Changing an earlier decision does not count: nothing was finished.
+ */
+function isLastPending(detail: ReviewDetail, findingId: number): boolean {
+  const pending = detail.findings.filter((finding) => finding.status === "pending");
+  return pending.length === 1 && pending[0]?.id === findingId;
+}
+
 export async function decideFindingFor(
   findingId: number,
   decision: FindingDecision,
@@ -212,7 +228,8 @@ export async function decideFindingFor(
     return fail(problem);
   }
   await decideFinding(deps.db, findingId, decision, login);
-  return { ok: true };
+  const finishes = decision.status !== "pending" && isLastPending(loaded.detail, findingId);
+  return finishes ? { ok: true, allDecided: true } : { ok: true };
 }
 
 export const findingEditSchema = z.object({
@@ -248,7 +265,8 @@ export async function editFindingFor(
   } else {
     await editFinding(deps.db, findingId, edit.data, login);
   }
-  return { ok: true };
+  // An edit confirms the finding, so it can be the one that finishes the review.
+  return isLastPending(loaded.detail, findingId) ? { ok: true, allDecided: true } : { ok: true };
 }
 
 const optionalText = z

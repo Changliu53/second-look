@@ -1,29 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type FormEvent } from "react";
-import { RiskBadge } from "@/components/badges";
-import { MarkdownLite } from "@/components/markdown-lite";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AddOnLine, DiffFile } from "@/components/review/diff-file";
 import { FindingFields } from "@/components/review/finding-fields";
 import { FindingOutline } from "@/components/review/finding-outline";
-import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { FindingKeys } from "@/components/review/finding-keys";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
-import { Toast } from "@/components/toast";
+import { SummaryCard } from "@/components/summary-card";
+import { ALL_DECIDED_MESSAGE, Toast } from "@/components/toast";
 import { BUTTON, BUTTON_PRIMARY, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { Finding } from "@/db/schema";
 import type { Example } from "@/examples/examples";
 import type { SavedResult } from "@/examples/saved";
-import { checkRunFor } from "@/github/check-run";
-import {
-  buildReviewParts,
-  fixPromptFor,
-  fixPromptSection,
-  type Resolution,
-} from "@/github/publish";
+import type { Resolution } from "@/github/publish";
 import type { PasteSuccess } from "@/paste/handle-paste";
 import { parseUnifiedDiff } from "@/review/diff";
 import { PASTED_FILE_NAME, toReviewableDiff } from "@/review/paste";
@@ -35,13 +27,18 @@ import {
   toSandboxFindings,
   type SandboxAction,
 } from "@/sandbox/model";
+import { ArrivalStep } from "./playground/arrival-step";
+import { AuthorStep } from "./playground/author-step";
+import { PublishStep } from "./playground/publish-step";
+import { StepsBar, type PlaygroundStep, type StepStatus } from "./playground/steps-bar";
 import { SandboxFindingCard } from "./sandbox-finding-card";
 
 /**
  * The home page: the whole product loop in one screen, with no login.
- * Left: pick an example or paste code. Right: the AI's findings inline in the
- * code, which the visitor confirms or rejects, and a preview of what the pull
- * request author would then receive.
+ * Left: pick an example or paste code. Right: the same steps as a real
+ * review, in order. The pull request arrives and the first pass runs, the
+ * visitor confirms or rejects the findings, publishes, and sees what the
+ * author would receive. Nothing is stored or posted.
  */
 
 type Review = {
@@ -52,14 +49,14 @@ type Review = {
   summary: ReviewSummary;
   /** Shown above the result: where it came from. */
   origin: string;
+  /** Heading of the first step: an example, or the visitor's own code. */
+  label: string;
 };
 
 type Request =
   | { phase: "idle" }
   | { phase: "loading" }
   | { phase: "error"; message: string };
-
-type Tab = "review" | "author";
 
 export type WorkbenchProps = {
   examples: Example[];
@@ -96,8 +93,11 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
   const [description, setDescription] = useState(selected?.description ?? "");
   const [request, setRequest] = useState<Request>({ phase: "idle" });
   const [published, setPublished] = useState<Resolution | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("review");
+  const [toast, setToast] = useState<{ message: string; toPublish?: boolean } | null>(null);
+  // A saved example starts at the first step, with its first pass replayed.
+  const [step, setStep] = useState<PlaygroundStep>(selected && saved ? "arrives" : "review");
+  const [firstPassDone, setFirstPassDone] = useState(false);
+  const [note, setNote] = useState("");
   const [review, setReview] = useState<Review | null>(
     selected && saved
       ? {
@@ -105,6 +105,7 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
           title: selected.description,
           summary: saved.summary,
           origin: savedOrigin(saved),
+          label: "Example pull request",
         }
       : null,
   );
@@ -125,22 +126,44 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
       title: description.trim() || "this change",
       summary: outcome.result.summary,
       origin: "Reviewed just now. Your code was sent to the model and was not stored.",
+      label: "Your code, as a pull request",
     });
     setFindings(toSandboxFindings(outcome.result.findings));
     setPublished(null);
-    setTab("review");
+    setNote("");
+    // The first pass has really just run, so there is nothing to replay.
+    setFirstPassDone(true);
+    setStep("review");
     setRequest({ phase: "idle" });
   }
+
+  function scrollResultToTop() {
+    document.getElementById("result")?.scrollTo({ top: 0 });
+  }
+
+  // Stable, so the toast's timer is not restarted by every render.
+  const dismissToast = useCallback(() => setToast(null), []);
+
+  /** The first pass is over: replayed to the end, or skipped. */
+  const finishFirstPass = useCallback(() => {
+    setFirstPassDone(true);
+    // Move on by itself, as the dashboard does when a review finishes, unless
+    // the visitor has already gone somewhere else.
+    setStep((current) => (current === "arrives" ? "review" : current));
+  }, []);
 
   /** The simulated publish: nothing leaves the browser. */
   function publish(resolution: Resolution) {
     setPublished(resolution);
-    setToast(
-      resolution === "reviewer_takes_over"
-        ? "Published (simulated). The author is told you are taking this over."
-        : "Published (simulated). The author gets your comments and the fix prompt.",
-    );
-    document.getElementById("result")?.scrollTo({ top: 0 });
+    setToast({
+      message:
+        resolution === "reviewer_takes_over"
+          ? "Published (simulated). The author is told you are taking this over."
+          : "Published (simulated). The author gets your comments and the fix prompt.",
+    });
+    // On to what was posted, as a reviewer would go and look at the pull request.
+    setStep("author");
+    scrollResultToTop();
   }
 
   /** Back to the review as the AI returned it, to try a different path. */
@@ -148,19 +171,36 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
     // Drop findings the visitor added and undo every decision.
     setFindings((current) => current.filter((f) => f.source === "ai").map(resetDecision));
     setPublished(null);
-    setTab("review");
-    document.getElementById("result")?.scrollTo({ top: 0 });
+    setNote("");
+    setStep("review");
+    scrollResultToTop();
   }
 
-  /** Switches tab and returns to the top, since the two tabs differ in length. */
-  function showTab(next: Tab) {
-    setTab(next);
-    document.getElementById("result")?.scrollTo({ top: 0 });
+  /** Switches step and returns to the top, since the steps differ in length. */
+  function showStep(next: PlaygroundStep) {
+    // Leaving the first step while the replay runs is the same as skipping it.
+    if (next !== "arrives") {
+      setFirstPassDone(true);
+    }
+    setStep(next);
+    scrollResultToTop();
   }
 
   function act(action: SandboxAction) {
     setFindings((current) => sandboxReducer(current, action));
   }
+
+  // The decision that leaves nothing pending is worth announcing: the review
+  // is done and the next thing to do is publish. Watched as a change in the
+  // count, so it holds however the last decision was made (button or key).
+  const pendingCount = countByStatus(findings).pending;
+  const previousPending = useRef(pendingCount);
+  useEffect(() => {
+    if (previousPending.current > 0 && pendingCount === 0 && findings.length > 0) {
+      setToast({ message: ALL_DECIDED_MESSAGE, toPublish: true });
+    }
+    previousPending.current = pendingCount;
+  }, [pendingCount, findings.length]);
 
   return (
     // The page is a column: top bar, a one-line introduction, then the two
@@ -287,10 +327,14 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
           <ResultPane
             review={review}
             findings={findings}
-            tab={tab}
-            onTab={showTab}
+            step={step}
+            onStep={showStep}
+            firstPassDone={firstPassDone}
+            onFirstPassDone={finishFirstPass}
             published={published}
             onPublish={publish}
+            note={note}
+            onNote={setNote}
             onStartOver={startOver}
             onAction={act}
           />
@@ -299,7 +343,25 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
         )}
       </div>
       </main>
-      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {toast && (
+        <Toast
+          message={toast.message}
+          onDone={dismissToast}
+          action={
+            toast.toPublish ? (
+              <button
+                className="font-medium underline underline-offset-2"
+                onClick={() => {
+                  setToast(null);
+                  showStep("publish");
+                }}
+              >
+                Continue to publish
+              </button>
+            ) : undefined
+          }
+        />
+      )}
     </div>
   );
 }
@@ -388,21 +450,29 @@ function EmptyState() {
 function ResultPane({
   review,
   findings,
-  tab,
-  onTab,
+  step,
+  onStep,
+  firstPassDone,
+  onFirstPassDone,
   onAction,
   published,
   onPublish,
+  note,
+  onNote,
   onStartOver,
 }: {
   review: Review;
   findings: Finding[];
-  tab: Tab;
-  onTab: (tab: Tab) => void;
+  step: PlaygroundStep;
+  onStep: (step: PlaygroundStep) => void;
+  firstPassDone: boolean;
+  onFirstPassDone: () => void;
   onAction: (action: SandboxAction) => void;
   /** Set once the visitor has pressed Publish. Decisions are then fixed. */
   published: Resolution | null;
   onPublish: (resolution: Resolution) => void;
+  note: string;
+  onNote: (note: string) => void;
   onStartOver: () => void;
 }) {
   const files = useMemo(() => parseUnifiedDiff(toReviewableDiff(review.code)), [review.code]);
@@ -445,43 +515,20 @@ function ResultPane({
     setComposing(null);
   }
 
-  // Step one is done when nothing is left to decide; step two when published.
-  const reviewDone = findings.length > 0 && counts.pending === 0;
+  const status: Record<PlaygroundStep, StepStatus> = {
+    arrives: { done: firstPassDone, blocked: null },
+    review: { done: firstPassDone && (counts.pending === 0 || published !== null), blocked: null },
+    publish: { done: published !== null, blocked },
+    author: {
+      done: false,
+      blocked: published ? null : "Publish the review first. This step shows what the author gets.",
+    },
+  };
 
   return (
     <div className="animate-rise-in">
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-edge bg-surface-raised/95 px-5 py-2.5 backdrop-blur">
-        {/* Two steps in order, not two tabs: the second opens once the first
-            is finished, and the line between them fills in when it is. */}
-        <nav aria-label="Steps of a review">
-          <ol className="flex items-center gap-1.5">
-            <li>
-              <Step
-                number={1}
-                label="Review findings"
-                current={tab === "review"}
-                done={reviewDone || published !== null}
-                onClick={() => onTab("review")}
-              />
-            </li>
-            <li
-              aria-hidden
-              className={`h-0.5 w-8 rounded-full transition-colors ${reviewDone || published ? "bg-green-700" : "bg-slate-300"}`}
-            />
-            <li>
-              <ReasonTip reason={blocked} side="bottom">
-                <Step
-                  number={2}
-                  label="Publish"
-                  current={tab === "author"}
-                  done={published !== null}
-                  disabled={blocked !== null}
-                  onClick={() => onTab("author")}
-                />
-              </ReasonTip>
-            </li>
-          </ol>
-        </nav>
+        <StepsBar current={step} status={status} onStep={onStep} />
         <p className="text-xs text-ink-soft">
           <span className="font-semibold text-ink">{counts.pending}</span> pending
           <span className="mx-1.5">·</span>
@@ -489,21 +536,57 @@ function ResultPane({
           <span className="mx-1.5">·</span>
           <span className="font-semibold text-ink">{counts.rejected}</span> rejected
         </p>
-        <div className="ml-auto">{tab === "review" && !published && <FindingKeys />}</div>
+        <div className="ml-auto">{step === "review" && !published && <FindingKeys pending={counts.pending} hints={false} />}</div>
       </div>
 
       <div className="mx-auto max-w-4xl p-5">
-        {tab === "review" ? (
+        {step === "arrives" && (
+          <ArrivalStep
+            label={review.label}
+            title={review.title}
+            fileCount={files.length}
+            lineCount={review.code.split("\n").length}
+            findingCount={findings.filter((finding) => finding.source === "ai").length}
+            finished={firstPassDone}
+            onFinished={onFirstPassDone}
+            onOpenReview={() => onStep("review")}
+          />
+        )}
+        {step === "publish" && (
+          <PublishStep
+            title={review.title}
+            findings={findings}
+            blocked={blocked}
+            published={published}
+            note={note}
+            onNote={onNote}
+            onPublish={onPublish}
+            onSeeAuthor={() => onStep("author")}
+          />
+        )}
+        {step === "author" && published && (
+          <AuthorStep
+            title={review.title}
+            summary={review.summary}
+            findings={findings}
+            files={files}
+            resolution={published}
+            note={note}
+            onStartOver={onStartOver}
+          />
+        )}
+        {step === "review" && (
           <>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold tracking-tight">
-                {findings.length === 0
-                  ? "No findings"
-                  : `${findings.length} finding${findings.length === 1 ? "" : "s"} to go through`}
-              </h2>
-              <RiskBadge riskLevel={review.summary.riskLevel} />
-            </div>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {findings.length === 0
+                ? "No findings"
+                : `${findings.length} finding${findings.length === 1 ? "" : "s"} to go through`}
+            </h2>
             <p className="mt-1 text-xs text-ink-soft">{review.origin}</p>
+            {/* As on the dashboard: what the first pass wrote for the author. */}
+            <div className="mt-4">
+              <SummaryCard summary={review.summary} />
+            </div>
             {findings.length === 0 ? (
               <p className="mt-4 rounded-lg border border-edge bg-surface-raised p-4 text-sm">
                 The first pass saw nothing worth your time in this change.
@@ -520,6 +603,12 @@ function ResultPane({
           sees it. <span className="font-medium text-ink">Edit</span> rewrites it in your words.
           Missed something? Hover a line and click{" "}
           <span className="rounded bg-accent px-1 font-bold text-white">+</span> to add your own.
+                <span className="hidden lg:inline">
+                  {" "}
+                  Keys: <kbd className={KBD}>j</kbd> <kbd className={KBD}>k</kbd> move,{" "}
+                  <kbd className={KBD}>c</kbd> confirm, <kbd className={KBD}>r</kbd> reject,{" "}
+                  <kbd className={KBD}>e</kbd> edit, <kbd className={KBD}>n</kbd> next pending.
+                </span>
               </p>
             )}
             {view.files.map((file) => (
@@ -596,7 +685,7 @@ function ResultPane({
                   <button
                     className={BUTTON_PRIMARY}
                     disabled={blocked !== null}
-                    onClick={() => onTab("author")}
+                    onClick={() => onStep("publish")}
                   >
                     Continue to publish
                   </button>
@@ -617,277 +706,8 @@ function ResultPane({
               </p>
             )}
           </>
-        ) : (
-          <AuthorView
-            review={review}
-            findings={findings}
-            files={files}
-            blocked={blocked}
-            published={published}
-            onPublish={onPublish}
-            onStartOver={onStartOver}
-          />
         )}
       </div>
-    </div>
-  );
-}
-
-/** One step in the playground's two-step bar. */
-function Step({
-  number,
-  label,
-  current,
-  done,
-  disabled = false,
-  onClick,
-}: {
-  number: number;
-  label: string;
-  current: boolean;
-  done: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const circle = done
-    ? "border-green-700 bg-green-700 text-white"
-    : current
-      ? "border-slate-900 bg-slate-900 text-white"
-      : "border-slate-300 text-ink-soft";
-  return (
-    <button
-      type="button"
-      aria-current={current ? "step" : undefined}
-      disabled={disabled}
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
-    >
-      <span className={`grid size-5 place-items-center rounded-full border text-[0.6875rem] font-semibold ${circle}`}>
-        {done ? "✓" : number}
-      </span>
-      <span className={current ? "font-semibold text-ink" : "text-ink-soft"}>{label}</span>
-    </button>
-  );
-}
-
-const CHECK_STYLES: Record<string, string> = {
-  action_required: "border-red-200 bg-red-50 text-red-900",
-  success: "border-green-200 bg-green-50 text-green-900",
-};
-
-// In the preview text a real reviewer's GitHub login would appear here.
-const PREVIEW_REVIEWER = "The reviewer";
-
-const MODES: Array<{ value: Resolution; label: string; detail: string }> = [
-  {
-    value: "author_fixes",
-    label: "Send back to the author",
-    detail: "They get your comments and a prompt for their AI tool.",
-  },
-  {
-    value: "reviewer_takes_over",
-    label: "I will fix it myself",
-    detail: "The author is told to do nothing. You get a prompt for your own agent.",
-  },
-];
-
-function AuthorView({
-  review,
-  findings,
-  files,
-  blocked,
-  published,
-  onPublish,
-  onStartOver,
-}: {
-  review: Review;
-  findings: Finding[];
-  files: ReturnType<typeof parseUnifiedDiff>;
-  /** Why publishing is unavailable, or null. The tab is disabled while this
-   *  is set, so the button here is a second guard, not the usual path. */
-  blocked: string | null;
-  published: Resolution | null;
-  onPublish: (resolution: Resolution) => void;
-  onStartOver: () => void;
-}) {
-  const [chosen, setResolution] = useState<Resolution>("author_fixes");
-  // Once published, the mode that was used is shown and cannot be changed.
-  const resolution = published ?? chosen;
-  const [copied, setCopied] = useState(false);
-  const confirmed = findings.filter((finding) => finding.status === "confirmed");
-  const takenOver = resolution === "reviewer_takes_over";
-  const title = review.title;
-  const parts = buildReviewParts({
-    headSha: "",
-    summary: review.summary,
-    findings,
-    files,
-    reviewerLogin: PREVIEW_REVIEWER,
-    reviewerNote: null,
-    resolution,
-    pullRequestTitle: title,
-  });
-  const engineerPrompt = takenOver ? fixPromptFor(title, findings, "engineer") : null;
-  const check = checkRunFor({
-    kind: "published",
-    confirmedCount: confirmed.length,
-    confirmedCriticalCount: confirmed.filter((f) => f.severity === "critical").length,
-    takenOverBy: takenOver ? PREVIEW_REVIEWER : undefined,
-  });
-
-  async function copyMarkdown() {
-    const comments = parts.comments.map(
-      (comment) => `### ${comment.path}:${comment.line}\n\n${comment.body}`,
-    );
-    // Same order as the real review: body, fix prompt, footer, then comments.
-    const promptSection = parts.fixPrompt ? [fixPromptSection(parts.fixPrompt)] : [];
-    await navigator.clipboard.writeText(
-      [parts.main, ...promptSection, parts.footer, ...comments].join("\n\n"),
-    );
-    setCopied(true);
-  }
-
-  return (
-    <div className="space-y-4">
-      {published ? (
-        <section role="status" className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-950">
-          <p className="text-base font-semibold">Review published (simulated)</p>
-          <p className="mt-1 leading-relaxed">
-            Nothing left your browser. On a real pull request, this is the moment the author first
-            hears from Second Look: one GitHub review with the {confirmed.length} finding
-            {confirmed.length === 1 ? "" : "s"} you confirmed, shown below.
-          </p>
-          <p className="mt-2 font-medium">What happens next</p>
-          <ol className="mt-1 list-decimal space-y-0.5 pl-5 leading-relaxed">
-            <li>
-              {takenOver
-                ? "You check out the branch and make the fixes, with the prompt below if you use a coding agent."
-                : "The author pastes the fix prompt into their AI tool and pushes the result."}
-            </li>
-            <li>The push starts a second review. It says which findings are fixed and does not repeat what you rejected.</li>
-            <li>You publish again, and the check turns green when no critical finding is left.</li>
-          </ol>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Link href="/example" className={BUTTON_PRIMARY}>
-              See real pull requests after round two
-            </Link>
-            <button className={BUTTON} onClick={onStartOver}>
-              Start over
-            </button>
-          </div>
-        </section>
-      ) : (
-        <header>
-          <h2 className="text-lg font-semibold tracking-tight">Publish the review</h2>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            Until now nothing has reached the author. Choose who makes the fixes, check what will
-            be posted, then publish. This is a playground, so pressing Publish only shows what
-            would happen.
-          </p>
-        </header>
-      )}
-
-      {confirmed.length > 0 && (
-        <fieldset>
-          <legend className={SECTION_LABEL}>Who makes the fixes?</legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {MODES.map((mode) => (
-              <label
-                key={mode.value}
-                className="flex cursor-pointer gap-3 rounded-md border border-edge bg-surface-raised p-3 transition hover:border-slate-400 has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
-              >
-                <input
-                  type="radio"
-                  name="resolution"
-                  className="mt-1"
-                  checked={resolution === mode.value}
-                  disabled={published !== null}
-                  onChange={() => setResolution(mode.value)}
-                />
-                <span>
-                  <span className="block text-sm font-medium">{mode.label}</span>
-                  <span className="block text-xs leading-relaxed text-ink-soft">{mode.detail}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
-
-      {!published && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-edge bg-surface-raised p-4">
-          <ReasonTip reason={blocked}>
-            <button className={BUTTON_PRIMARY} disabled={blocked !== null} onClick={() => onPublish(resolution)}>
-              Publish review
-            </button>
-          </ReasonTip>
-          <span className="text-xs leading-relaxed text-ink-soft">
-            Posts one review with {confirmed.length} finding{confirmed.length === 1 ? "" : "s"} and
-            sets the check. Below is exactly what would be posted.
-          </span>
-        </div>
-      )}
-
-      <div className={`rounded-lg border p-3 text-sm ${CHECK_STYLES[check.conclusion ?? ""] ?? "border-edge"}`}>
-        <p className={SECTION_LABEL}>Check on the pull request</p>
-        <p className="mt-1 font-semibold">Second Look: {check.title}</p>
-        <p className="mt-0.5 text-xs leading-relaxed opacity-90">{check.summary}</p>
-      </div>
-
-      <section className="rounded-lg border border-edge bg-surface-raised">
-        <div className="flex items-center justify-between gap-3 border-b border-edge px-4 py-2">
-          <p className={SECTION_LABEL}>{published ? "Review posted to GitHub" : "Review that will be posted"}</p>
-          <button className={BUTTON} onClick={copyMarkdown}>
-            {copied ? "Copied" : "Copy as Markdown"}
-          </button>
-        </div>
-        <div className="space-y-3 p-4">
-          <MarkdownLite text={parts.main} />
-          <MarkdownLite text={parts.footer} />
-        </div>
-      </section>
-
-      {parts.fixPrompt && (
-        <FixPromptBlock
-          title="Fix prompt, included in the review"
-          hint="The author pastes this into their AI tool."
-          prompt={parts.fixPrompt}
-        />
-      )}
-      {engineerPrompt && (
-        <FixPromptBlock
-          title="Prompt for your coding agent"
-          hint="Shown to you in the dashboard after you publish. The author does not get it."
-          prompt={engineerPrompt}
-        />
-      )}
-
-      {parts.comments.length > 0 && (
-        <section>
-          <p className={SECTION_LABEL}>
-            {parts.comments.length} inline comment{parts.comments.length === 1 ? "" : "s"} on the diff
-          </p>
-          <ul className="mt-2 space-y-2">
-            {parts.comments.map((comment, index) => (
-              <li key={index} className="rounded-lg border border-edge bg-surface-raised p-3">
-                <p className="font-mono text-xs text-ink-soft">
-                  {comment.path === PASTED_FILE_NAME ? "line " : `${comment.path}:`}
-                  {comment.start_line ? `${comment.start_line}-` : ""}
-                  {comment.line}
-                </p>
-                <div className="mt-1.5">
-                  <MarkdownLite text={comment.body} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <p className="text-xs leading-relaxed text-ink-soft">
-        Rejected findings and your reasons stay in Second Look. The author sees one review, written
-        as if by you, and nothing the AI got wrong.
-      </p>
     </div>
   );
 }

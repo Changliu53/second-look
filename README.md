@@ -2,13 +2,13 @@
 
 In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look is a tool for that engineer: it does the first pass on each pull request, and the engineer confirms, rejects, or rewrites every finding before the author sees anything.
 
-![The playground: example changes on the left, and on the right a C# file under review with one finding confirmed, one rejected with reasons to pick from, and Publish disabled while one is pending](docs/home.jpg)
+![The playground on its second step of four: a C# file under review with one finding confirmed, one rejected with reasons to pick from, and Publish disabled while one is pending](docs/home.jpg)
 
 ## Try it
 
 Everything below works without an account.
 
-- **Playground:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt), confirm or reject each finding, then choose who fixes it and press Publish to see what the author would get. Nothing is posted from the playground. Or paste your own code.
+- **Playground:** https://second-look-review.vercel.app. Pick an example (C#, EF Core, React, or a prompt-injection attempt) and go through the same four steps as a real review: the pull request arrives and the first pass runs, you confirm or reject each finding, you choose who fixes it and publish, and you see what the author gets on GitHub. Nothing is posted from the playground. Or paste your own code.
 - **Real pull requests after review, read-only:** https://second-look-review.vercel.app/example. Two pull requests on a sample C# service, each through two rounds. On GitHub: [CSV export](https://github.com/Changliu53/fieldops-platform-sample/pull/1), sent back to the author with a fix prompt, and [column rename](https://github.com/Changliu53/fieldops-platform-sample/pull/2), taken over by the reviewer.
 - **The tool reviewing its own code:** pull requests [#3](https://github.com/Changliu53/second-look/pull/3) to [#7](https://github.com/Changliu53/second-look/pull/7) in this repository. It found a flaw in its own eval, a setup script that failed on the documented path, and a crash that the build and the tests had both missed.
 
@@ -38,7 +38,7 @@ flowchart LR
    ![A finding the reviewer wrote on a line of the diff, above one from the first pass](docs/add-finding.jpg)
 
 4. **The engineer publishes and chooses who fixes it.**
-   - *Send back to the author.* One GitHub review with the confirmed findings, a plain-English summary, and a prompt the author can paste into their AI tool. The prompt lists each finding with its file and lines and tells the tool to change nothing else.
+   - *Send back to the author.* One GitHub review with the confirmed findings, a plain-English summary, and a prompt the author can paste into their AI tool. The prompt is in the review body under "Fix these with your AI tool". It lists each finding with its file and lines and tells the tool to change nothing else.
    - *I will fix it myself.* The author is told they do not need to do anything. The reviewer gets a checkout command and a prompt written for an engineer's coding agent.
 
    ![The publish form: send back to the author, or fix it myself](docs/publish-modes.jpg)

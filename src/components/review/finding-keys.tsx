@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ReasonTip } from "@/components/reason-tip";
 import { KBD } from "@/components/ui";
 
 /**
@@ -152,7 +153,14 @@ function activateFromHash(): void {
   }
 }
 
-export function FindingKeys() {
+export function FindingKeys({
+  pending,
+  hints = true,
+}: {
+  pending: number;
+  /** False where the bar has no room for the key legend; the keys still work. */
+  hints?: boolean;
+}) {
   useEffect(() => {
     activateFromHash();
     window.addEventListener("keydown", handleKey);
@@ -168,22 +176,31 @@ export function FindingKeys() {
 
   return (
     <div className="flex items-center gap-4">
-      <p className="hidden items-center gap-1.5 text-xs text-ink-soft xl:flex">
-        <kbd className={KBD}>j</kbd>
-        <kbd className={KBD}>k</kbd> move
-        <kbd className={`${KBD} ml-2`}>c</kbd> confirm
-        <kbd className={KBD}>r</kbd> reject
-        <kbd className={KBD}>e</kbd> edit
-      </p>
+      {hints && (
+        <p className="hidden items-center gap-1.5 text-xs text-ink-soft xl:flex">
+          <kbd className={KBD}>j</kbd>
+          <kbd className={KBD}>k</kbd> move
+          <kbd className={`${KBD} ml-2`}>c</kbd> confirm
+          <kbd className={KBD}>r</kbd> reject
+          <kbd className={KBD}>e</kbd> edit
+        </p>
+      )}
       {/* The same as pressing n, for people using the mouse. */}
-      <button
-        type="button"
-        onClick={goToNextPending}
-        className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface-raised px-2.5 py-1 text-xs font-medium transition hover:border-slate-400"
+      <ReasonTip
+        reason={pending === 0 ? "Nothing is pending. Every finding has a decision." : null}
+        side="bottom"
+        align="end"
       >
-        Next pending
-        <kbd className={KBD}>n</kbd>
-      </button>
+        <button
+          type="button"
+          disabled={pending === 0}
+          onClick={goToNextPending}
+          className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface-raised px-2.5 py-1 text-xs font-medium transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-edge"
+        >
+          Next pending
+          <kbd className={KBD}>n</kbd>
+        </button>
+      </ReasonTip>
     </div>
   );
 }

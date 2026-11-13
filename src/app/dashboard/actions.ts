@@ -48,7 +48,9 @@ function finish(reviewId: number, result: ActionResult, findingId?: number): nev
   if (!result.ok) {
     redirect(`${reviewPath(reviewId)}?error=${result.error}${anchor}`);
   }
-  redirect(`${reviewPath(reviewId)}${anchor}`);
+  // Tells the page to announce that every finding now has a decision.
+  const decided = result.allDecided ? "?decided=all" : "";
+  redirect(`${reviewPath(reviewId)}${decided}${anchor}`);
 }
 
 function readIds(formData: FormData): { reviewId: number; findingId: number } {

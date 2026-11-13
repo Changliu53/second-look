@@ -17,14 +17,26 @@ const MARKERS = { add: "+", del: "-", context: " " } as const;
 
 type RenderFinding = (finding: Finding) => React.ReactNode;
 
+/**
+ * Hooks for adding a finding on a line. `lineNumber` replaces the plain
+ * number (with a link or a button), and `afterLine` puts something under a
+ * line, which is where the form for a new finding opens.
+ */
+export type LineSlots = {
+  lineNumber?: (newLine: number) => React.ReactNode;
+  afterLine?: (newLine: number) => React.ReactNode;
+};
+
 function Row({
   row,
   plain,
   renderFinding,
+  slots,
 }: {
   row: DiffRow;
   plain: boolean;
   renderFinding: RenderFinding;
+  slots: LineSlots;
 }) {
   if (row.kind === "hunk") {
     return plain ? null : (
@@ -36,7 +48,7 @@ function Row({
     <>
       <div className={`flex ${plain ? "" : LINE_STYLES[line.kind]}`}>
         <span className="w-12 shrink-0 select-none pr-3 text-right text-slate-400">
-          {line.newLine ?? ""}
+          {line.newLine === null ? "" : (slots.lineNumber?.(line.newLine) ?? line.newLine)}
         </span>
         {!plain && (
           <span className={`w-4 shrink-0 select-none ${MARKER_STYLES[line.kind]}`}>
@@ -52,6 +64,7 @@ function Row({
           ))}
         </div>
       )}
+      {line.newLine !== null && slots.afterLine?.(line.newLine)}
     </>
   );
 }
@@ -67,6 +80,7 @@ export function DiffFile({
   plain = false,
   title,
   skippedAs,
+  slots = {},
 }: {
   file: FileView;
   renderFinding: RenderFinding;
@@ -74,6 +88,7 @@ export function DiffFile({
   title?: string;
   /** Set for files the AI did not review, which start folded away. */
   skippedAs?: string;
+  slots?: LineSlots;
 }) {
   if (skippedAs) {
     return (
@@ -86,7 +101,7 @@ export function DiffFile({
         </summary>
         <div className="border-t border-edge font-mono text-xs leading-5">
           {file.rows.map((row, index) => (
-            <Row key={index} row={row} plain={false} renderFinding={renderFinding} />
+            <Row key={index} row={row} plain={false} renderFinding={renderFinding} slots={slots} />
           ))}
         </div>
       </details>
@@ -100,7 +115,7 @@ export function DiffFile({
       </h3>
       <div className={`font-mono text-xs leading-5 ${plain ? "py-1" : ""}`}>
         {file.rows.map((row, index) => (
-          <Row key={index} row={row} plain={plain} renderFinding={renderFinding} />
+          <Row key={index} row={row} plain={plain} renderFinding={renderFinding} slots={slots} />
         ))}
       </div>
     </section>

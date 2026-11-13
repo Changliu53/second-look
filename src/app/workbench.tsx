@@ -5,10 +5,11 @@ import { useMemo, useState, type FormEvent } from "react";
 import { RiskBadge } from "@/components/badges";
 import { MarkdownLite } from "@/components/markdown-lite";
 import { DiffFile } from "@/components/review/diff-file";
+import { FindingFields } from "@/components/review/finding-fields";
 import { FindingOutline } from "@/components/review/finding-outline";
 import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { FindingKeys } from "@/components/review/finding-keys";
-import { Logo, NavLinks } from "@/components/site-header";
+import { SiteHeader } from "@/components/site-header";
 import { BUTTON, BUTTON_PRIMARY, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { Finding } from "@/db/schema";
@@ -24,7 +25,7 @@ import {
 import type { PasteSuccess } from "@/paste/handle-paste";
 import { parseUnifiedDiff } from "@/review/diff";
 import { PASTED_FILE_NAME, toReviewableDiff } from "@/review/paste";
-import type { ReviewSummary } from "@/review/schema";
+import { CATEGORIES, SEVERITIES, type ReviewSummary } from "@/review/schema";
 import {
   countByStatus,
   sandboxReducer,
@@ -136,41 +137,56 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col lg:h-dvh lg:flex-row">
-      <aside className="flex w-full shrink-0 flex-col gap-6 border-b border-edge bg-surface-raised p-5 lg:h-full lg:w-[27rem] lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <header>
-          <div className="flex items-center justify-between gap-3">
-            <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-              <Logo className="size-6" />
-              Second Look
-            </Link>
-          </div>
-          <p className="mt-3 text-[0.9375rem] font-semibold leading-snug tracking-tight">
+    // The page is a column: top bar, a one-line introduction, then the two
+    // panes, which take the rest of the window and scroll on their own.
+    <div className="flex min-h-dvh flex-col lg:h-dvh">
+      <SiteHeader current="/" wide />
+      <div className="shrink-0 border-b border-edge bg-surface px-5 py-2.5">
+        <p className="text-sm">
+          <span className="font-semibold">
             AI writes the code faster than you can read it. This reads it first, and you still
             decide.
+          </span>{" "}
+          <span className="text-ink-soft">
+            The AI does the first pass on a pull request, you confirm or reject each finding, and
+            the author gets one review with only what you confirmed.
+          </span>
+        </p>
+      </div>
+
+      <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {/* Left pane: what to review. Everything in it changes the right pane
+          and nothing in it leaves the page. */}
+      <aside className="flex w-full shrink-0 flex-col gap-6 border-b border-edge bg-surface-raised p-5 lg:h-full lg:w-[25rem] lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <header>
+          <h1 className="text-base font-semibold tracking-tight">Playground</h1>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
+            Go through a review the way a reviewer does. Pick a change below or paste your own.
+            Nothing here is saved or posted anywhere.
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            For the engineer who reviews pull requests written with AI tools by people who are
-            not engineers. Confirm, reject, or rewrite each finding. Only what you confirm reaches
-            the author.
-          </p>
-          <div className="-ml-2 mt-3">
-            <NavLinks current="/" />
-          </div>
         </header>
 
         <section>
-          <h2 className={SECTION_LABEL}>Try one. These load instantly</h2>
+          <h2 className={SECTION_LABEL}>Example changes</h2>
           <ul className="mt-2 flex flex-col gap-1.5">
             {examples.map((example) => (
               <li key={example.id}>
                 <Link
                   href={`/?example=${example.id}#result`}
                   aria-current={selected?.id === example.id ? "true" : undefined}
-                  className="block rounded-md border border-edge px-3 py-2 text-left transition hover:border-accent hover:bg-accent-soft aria-[current]:border-accent aria-[current]:bg-accent-soft"
+                  className="group flex items-start gap-2.5 rounded-md border border-edge px-3 py-2 text-left transition hover:border-accent hover:bg-accent-soft aria-[current]:border-accent aria-[current]:bg-accent-soft"
                 >
-                  <span className="block text-sm font-medium">{example.label}</span>
-                  <span className="block text-xs leading-snug text-ink-soft">{example.teaser}</span>
+                  {/* A radio dot: one of these is shown on the right at a time. */}
+                  <span
+                    aria-hidden
+                    className="mt-1 grid size-3.5 shrink-0 place-items-center rounded-full border border-slate-400 group-aria-[current]:border-accent"
+                  >
+                    <span className="size-1.5 rounded-full bg-accent opacity-0 group-aria-[current]:opacity-100" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-medium">{example.label}</span>
+                    <span className="block text-xs leading-snug text-ink-soft">{example.teaser}</span>
+                  </span>
                 </Link>
               </li>
             ))}
@@ -182,7 +198,11 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
         </section>
 
         <section>
-          <h2 className={SECTION_LABEL}>Or paste your own code or diff</h2>
+          <h2 className={SECTION_LABEL}>Your own code or diff</h2>
+          <p className="mt-1 text-xs text-ink-soft">
+            The examples are saved results and open instantly. This one calls the model, which
+            takes about 30 seconds.
+          </p>
           <form onSubmit={onSubmit} className="mt-2 space-y-2">
             <input
               className={INPUT}
@@ -249,7 +269,8 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
           <EmptyState />
         )}
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -340,6 +361,37 @@ function ResultPane({
   const counts = countByStatus(findings);
   // Plain pasted code becomes a one-file "diff"; show it as code, not a diff.
   const isSnippet = files.length === 1 && files[0]?.path === PASTED_FILE_NAME;
+  // The line a visitor clicked to write a finding of their own.
+  const [composing, setComposing] = useState<{ path: string; line: number } | null>(null);
+
+  function addFinding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!composing) {
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const explanation = String(form.get("explanation") ?? "").trim();
+    const severity = SEVERITIES.find((value) => value === form.get("severity"));
+    const category = CATEGORIES.find((value) => value === form.get("category"));
+    if (explanation === "" || !severity || !category) {
+      return;
+    }
+    const through = Number(form.get("endLine"));
+    const suggestedFix = String(form.get("suggestedFix") ?? "").trim();
+    onAction({
+      type: "add",
+      finding: {
+        filePath: composing.path,
+        startLine: composing.line,
+        endLine: Number.isInteger(through) && through >= composing.line ? through : composing.line,
+        severity,
+        category,
+        explanation,
+        suggestedFix: suggestedFix === "" ? null : suggestedFix,
+      },
+    });
+    setComposing(null);
+  }
 
   const tabClass = (name: Tab) =>
     `rounded-md px-2.5 py-1 text-sm font-medium transition ${
@@ -388,6 +440,9 @@ function ResultPane({
                 <FindingOutline findings={findings} />
               </div>
             )}
+            <p className="mt-3 text-xs text-ink-soft">
+              Seen something the first pass missed? Click a line number to add your own finding.
+            </p>
             {view.files.map((file) => (
               <DiffFile
                 key={file.path}
@@ -395,6 +450,34 @@ function ResultPane({
                 plain={isSnippet}
                 title={isSnippet ? "The code under review" : undefined}
                 renderFinding={(finding) => <SandboxFindingCard finding={finding} onAction={onAction} />}
+                slots={{
+                  lineNumber: (line) => (
+                    <button
+                      type="button"
+                      title="Add your own finding on this line"
+                      className="w-full rounded-sm text-right hover:bg-accent hover:text-white"
+                      onClick={() => setComposing({ path: file.path, line })}
+                    >
+                      {line}
+                    </button>
+                  ),
+                  afterLine: (line) =>
+                    composing?.path === file.path && composing.line === line ? (
+                      <form
+                        onSubmit={addFinding}
+                        className="border-y border-accent bg-accent-soft px-4 py-3 font-sans"
+                      >
+                        <p className="mb-2 text-sm font-semibold">Your finding on line {line}</p>
+                        <FindingFields startLine={line} />
+                        <div className="mt-3 flex items-center gap-3">
+                          <button className={BUTTON_PRIMARY}>Add finding</button>
+                          <button type="button" className={BUTTON} onClick={() => setComposing(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : null,
+                }}
               />
             ))}
             {view.unplaced.length > 0 && (

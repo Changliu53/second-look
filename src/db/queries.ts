@@ -673,6 +673,65 @@ export async function editFinding(
     .where(eq(findings.id, findingId));
 }
 
+export type HumanFindingInput = {
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  severity: Finding["severity"];
+  category: Finding["category"];
+  explanation: string;
+  suggestedFix: string | null;
+};
+
+/**
+ * Stores a finding the reviewer wrote themselves. It starts out confirmed:
+ * nobody needs to approve their own finding, and it should be published
+ * unless they remove it.
+ */
+export async function addHumanFinding(
+  db: Database,
+  reviewId: number,
+  input: HumanFindingInput,
+  addedBy: string,
+): Promise<Finding> {
+  const rows = await db
+    .insert(findings)
+    .values({
+      reviewId,
+      source: "human",
+      ...input,
+      // The reviewer is sure, or they would not have written it.
+      confidence: 1,
+      status: "confirmed",
+      decidedBy: addedBy,
+      decidedAt: new Date(),
+    })
+    .returning();
+  return firstRow(rows, "human finding insert");
+}
+
+/** Rewrites a finding the reviewer added. There is no AI original to keep. */
+export async function updateHumanFinding(
+  db: Database,
+  findingId: number,
+  edit: { explanation: string; suggestedFix: string | null },
+): Promise<void> {
+  await db
+    .update(findings)
+    .set(edit)
+    .where(and(eq(findings.id, findingId), eq(findings.source, "human")));
+}
+
+/**
+ * Deletes a finding the reviewer added. Only human findings can be deleted:
+ * an AI finding is rejected instead, so the decision stays on record.
+ */
+export async function removeHumanFinding(db: Database, findingId: number): Promise<void> {
+  await db
+    .delete(findings)
+    .where(and(eq(findings.id, findingId), eq(findings.source, "human")));
+}
+
 /**
  * Claims a review for publishing. Returns false if someone already did.
  *

@@ -1,14 +1,40 @@
+import Link from "next/link";
+import { addFindingAction } from "@/app/dashboard/actions";
 import { SummaryCard } from "@/components/summary-card";
-import { LINK, SECTION_LABEL } from "@/components/ui";
+import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { ReviewDetail, ReviewRound } from "@/db/queries";
 import { parseUnifiedDiff } from "@/review/diff";
 import { getSkipReason } from "@/review/filters";
+import { composeHref, type ComposeTarget } from "@/dashboard/compose-target";
 import { DiffFile } from "./diff-file";
 import { FindingOutline } from "./finding-outline";
 import { FollowUpPanel } from "./follow-up-panel";
 import { RoundsStrip } from "./rounds-strip";
 import { FindingCard } from "./finding-card";
+import { FindingFields } from "./finding-fields";
+
+function Composer({ reviewId, target }: { reviewId: number; target: ComposeTarget }) {
+  return (
+    <form
+      id="compose"
+      action={addFindingAction}
+      className="scroll-mt-24 border-y border-accent bg-accent-soft px-4 py-3 font-sans"
+    >
+      <input type="hidden" name="reviewId" value={reviewId} />
+      <input type="hidden" name="filePath" value={target.path} />
+      <input type="hidden" name="startLine" value={target.line} />
+      <p className="mb-2 text-sm font-semibold">Your finding on line {target.line}</p>
+      <FindingFields startLine={target.line} />
+      <div className="mt-3 flex items-center gap-3">
+        <button className={BUTTON_PRIMARY}>Add finding</button>
+        <Link href={`/dashboard/reviews/${reviewId}`} className={`${LINK} text-sm`}>
+          Cancel
+        </Link>
+      </div>
+    </form>
+  );
+}
 
 /**
  * The body of a review: PR header, summary, and the diff with findings
@@ -21,12 +47,15 @@ export function ReviewContent({
   locked,
   rounds = [],
   roundHref,
+  compose = null,
 }: {
   detail: ReviewDetail;
   diff: string | null;
   locked: boolean;
   rounds?: ReviewRound[];
   roundHref?: (round: ReviewRound, number: number) => string;
+  /** The line a new finding is being written on, from the URL. */
+  compose?: ComposeTarget | null;
 }) {
   const { review, pullRequest, repository } = detail;
   const view = buildReviewView(diff === null ? [] : parseUnifiedDiff(diff), detail.findings);
@@ -71,12 +100,37 @@ export function ReviewContent({
         </p>
       )}
 
+      {!locked && view.files.length > 0 && (
+        <p className="mt-4 text-xs text-ink-soft">
+          Seen something the first pass missed? Click a line number to add your own finding.
+        </p>
+      )}
+
       {view.files.map((file) => (
         <DiffFile
           key={file.path}
           file={file}
           skippedAs={getSkipReason(file.path, false) ?? undefined}
           renderFinding={(finding) => <FindingCard finding={finding} locked={locked} />}
+          slots={
+            locked
+              ? undefined
+              : {
+                  lineNumber: (line) => (
+                    <Link
+                      href={composeHref(review.id, file.path, line)}
+                      title="Add your own finding on this line"
+                      className="block rounded-sm hover:bg-accent hover:text-white"
+                    >
+                      {line}
+                    </Link>
+                  ),
+                  afterLine: (line) =>
+                    compose?.path === file.path && compose.line === line ? (
+                      <Composer reviewId={review.id} target={compose} />
+                    ) : null,
+                }
+          }
         />
       ))}
 

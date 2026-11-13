@@ -33,19 +33,51 @@ export function toSandboxFindings(findings: ReviewFinding[]): Finding[] {
   }));
 }
 
+/** What a visitor fills in to add a finding of their own. */
+export type NewSandboxFinding = Pick<
+  Finding,
+  "filePath" | "startLine" | "endLine" | "severity" | "category" | "explanation" | "suggestedFix"
+>;
+
 export type SandboxAction =
+  | { type: "add"; finding: NewSandboxFinding }
+  | { type: "remove"; id: number }
   | { type: "confirm"; id: number }
   | { type: "reject"; id: number; reason: string | null }
   | { type: "edit"; id: number; explanation: string; suggestedFix: string | null }
   | { type: "undo"; id: number };
 
-function applyTo(finding: Finding, action: SandboxAction): Finding {
+type PerFindingAction = Exclude<SandboxAction, { type: "add" } | { type: "remove" }>;
+
+/** A finding the visitor wrote. Like in the dashboard, it starts confirmed. */
+function humanFinding(input: NewSandboxFinding, id: number): Finding {
+  return {
+    ...input,
+    id,
+    reviewId: 0,
+    source: "human",
+    confidence: 1,
+    status: "confirmed",
+    editedExplanation: null,
+    editedSuggestedFix: null,
+    rejectionReason: null,
+    decidedBy: SANDBOX_REVIEWER,
+    decidedAt: null,
+    createdAt: new Date(0),
+  };
+}
+
+function applyTo(finding: Finding, action: PerFindingAction): Finding {
   switch (action.type) {
     case "confirm":
       return { ...finding, status: "confirmed", rejectionReason: null, decidedBy: SANDBOX_REVIEWER };
     case "reject":
       return { ...finding, status: "rejected", rejectionReason: action.reason, decidedBy: SANDBOX_REVIEWER };
     case "edit":
+      // A finding the visitor wrote is rewritten in place.
+      if (finding.source === "human") {
+        return { ...finding, explanation: action.explanation, suggestedFix: action.suggestedFix };
+      }
       // Same rule as the real dashboard: saving an edit confirms the finding.
       return {
         ...finding,
@@ -62,6 +94,14 @@ function applyTo(finding: Finding, action: SandboxAction): Finding {
 
 /** Reducer for the sandbox's findings. Returns a new array; never mutates. */
 export function sandboxReducer(findings: Finding[], action: SandboxAction): Finding[] {
+  if (action.type === "add") {
+    const nextId = Math.max(0, ...findings.map((finding) => finding.id)) + 1;
+    return [...findings, humanFinding(action.finding, nextId)];
+  }
+  if (action.type === "remove") {
+    // Only findings the visitor added can be removed. AI findings are rejected.
+    return findings.filter((finding) => finding.id !== action.id || finding.source !== "human");
+  }
   return findings.map((finding) => (finding.id === action.id ? applyTo(finding, action) : finding));
 }
 

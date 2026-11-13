@@ -1,6 +1,7 @@
 import {
   confirmFindingAction,
   editFindingAction,
+  removeFindingAction,
   rejectFindingAction,
   resetFindingAction,
 } from "@/app/dashboard/actions";
@@ -36,6 +37,7 @@ function Ids({ finding }: { finding: Finding }) {
 export function FindingCard({ finding, locked }: { finding: Finding; locked: boolean }) {
   const text = publishedText(finding);
   const reasonsId = `reasons-${finding.id}`;
+  const isHuman = finding.source === "human";
 
   return (
     <FindingFrame finding={finding}>
@@ -44,7 +46,9 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
 
       {!locked && (
         <div className="mt-3 flex flex-wrap items-start gap-2">
-          {finding.status !== "confirmed" && (
+          {/* A finding the reviewer wrote is not confirmed or rejected: it is
+              edited or removed. */}
+          {!isHuman && finding.status !== "confirmed" && (
             <form action={confirmFindingAction}>
               <Ids finding={finding} />
               <button data-action="confirm" className={BUTTON_CONFIRM}>
@@ -53,7 +57,7 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
             </form>
           )}
 
-          {finding.status !== "rejected" && (
+          {!isHuman && finding.status !== "rejected" && (
             <details data-action="reject" className={PANEL}>
               <summary className={`${BUTTON} cursor-pointer list-none`}>Reject</summary>
               <form action={rejectFindingAction} className="mt-2 max-w-xl">
@@ -84,11 +88,20 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
                 Suggested fix (optional)
                 <textarea name="suggestedFix" rows={3} defaultValue={text.suggestedFix ?? ""} className={`mt-1 ${INPUT}`} />
               </label>
-              <button className={`${BUTTON} mt-2`}>Save and confirm</button>
+              <button className={`${BUTTON} mt-2`}>{isHuman ? "Save" : "Save and confirm"}</button>
             </form>
           </details>
 
-          {finding.status !== "pending" && (
+          {isHuman && (
+            <form action={removeFindingAction}>
+              <Ids finding={finding} />
+              <button data-action="undo" className={`${BUTTON} text-ink-soft`}>
+                Remove
+              </button>
+            </form>
+          )}
+
+          {!isHuman && finding.status !== "pending" && (
             <form action={resetFindingAction}>
               <Ids finding={finding} />
               <button data-action="undo" className={`${BUTTON} text-ink-soft`}>

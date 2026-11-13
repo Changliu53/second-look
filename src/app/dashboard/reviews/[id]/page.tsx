@@ -6,6 +6,7 @@ import { CopyButton } from "@/components/copy-button";
 import { FindingKeys } from "@/components/review/finding-keys";
 import { FixPromptBlock } from "@/components/review/fix-prompt-block";
 import { ReviewContent } from "@/components/review/review-content";
+import { parseComposeTarget } from "@/dashboard/compose-target";
 import { ReviewProgress } from "@/components/review/review-progress";
 import { SiteHeader } from "@/components/site-header";
 import { BUTTON_PRIMARY, INPUT, LINK, SECTION_LABEL } from "@/components/ui";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; compose?: string }>;
 };
 
 /** Why the review cannot be changed any more, or null if it can. */
@@ -247,7 +248,8 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
 
   const { detail, diff, rounds } = loaded;
   // Only known codes are shown. Anything else in the URL is ignored.
-  const errorCode = (await searchParams).error ?? "";
+  const query = await searchParams;
+  const errorCode = query.error ?? "";
   const error = errorCode in ACTION_ERRORS ? ACTION_ERRORS[errorCode as ActionErrorCode] : null;
   const isRunning = detail.review.status === "running" && !isStaleRunning(detail.review);
   const reason = lockedReason(detail);
@@ -296,6 +298,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
           locked={locked}
           rounds={rounds}
           roundHref={(round) => `/dashboard/reviews/${round.reviewId}`}
+          compose={parseComposeTarget(query.compose)}
         />
 
         {!locked && <PublishForm detail={detail} />}

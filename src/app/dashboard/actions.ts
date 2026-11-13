@@ -5,9 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSignedInLogin, signIn, signOut } from "@/auth";
 import {
+  addFindingFor,
   decideFindingFor,
   editFindingFor,
   publishReviewFor,
+  removeFindingFor,
   type ActionResult,
 } from "@/dashboard/service";
 import { dashboardDeps } from "./deps";
@@ -90,6 +92,32 @@ export async function editFindingAction(formData: FormData): Promise<void> {
     suggestedFix: formData.get("suggestedFix") ?? "",
   };
   finish(reviewId, await editFindingFor(findingId, edit, login, dashboardDeps()), findingId);
+}
+
+export async function addFindingAction(formData: FormData): Promise<void> {
+  const login = await requireLogin();
+  const reviewId = idSchema.parse(formData.get("reviewId"));
+  // The service validates every field; here they are only collected.
+  const raw = {
+    filePath: formData.get("filePath"),
+    startLine: formData.get("startLine"),
+    endLine: formData.get("endLine"),
+    severity: formData.get("severity"),
+    category: formData.get("category"),
+    explanation: formData.get("explanation"),
+    suggestedFix: formData.get("suggestedFix") ?? "",
+  };
+  const result = await addFindingFor(reviewId, raw, login, dashboardDeps());
+  if (result.ok) {
+    finish(reviewId, { ok: true }, result.findingId);
+  }
+  finish(reviewId, result);
+}
+
+export async function removeFindingAction(formData: FormData): Promise<void> {
+  const login = await requireLogin();
+  const { reviewId, findingId } = readIds(formData);
+  finish(reviewId, await removeFindingFor(findingId, login, dashboardDeps()));
 }
 
 export async function publishReviewAction(formData: FormData): Promise<void> {

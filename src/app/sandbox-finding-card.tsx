@@ -28,6 +28,7 @@ export function SandboxFindingCard({
 }) {
   const [panel, setPanel] = useState<Panel>("none");
   const text = publishedText(finding);
+  const isHuman = finding.source === "human";
 
   function close(action: SandboxAction) {
     onAction(action);
@@ -62,12 +63,12 @@ export function SandboxFindingCard({
       <FindingText finding={finding} />
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {finding.status !== "confirmed" && (
+        {!isHuman && finding.status !== "confirmed" && (
           <button data-action="confirm" className={BUTTON_CONFIRM} onClick={() => close({ type: "confirm", id: finding.id })}>
             Confirm
           </button>
         )}
-        {finding.status !== "rejected" && (
+        {!isHuman && finding.status !== "rejected" && (
           <button data-action="reject" className={BUTTON} onClick={() => setPanel(panel === "reject" ? "none" : "reject")}>
             Reject
           </button>
@@ -75,7 +76,12 @@ export function SandboxFindingCard({
         <button data-action="edit" className={BUTTON} onClick={() => setPanel(panel === "edit" ? "none" : "edit")}>
           Edit
         </button>
-        {finding.status !== "pending" && (
+        {isHuman && (
+          <button data-action="undo" className={`${BUTTON} text-ink-soft`} onClick={() => close({ type: "remove", id: finding.id })}>
+            Remove
+          </button>
+        )}
+        {!isHuman && finding.status !== "pending" && (
           <button data-action="undo" className={`${BUTTON} text-ink-soft`} onClick={() => close({ type: "undo", id: finding.id })}>
             Undo
           </button>
@@ -114,7 +120,7 @@ export function SandboxFindingCard({
             Suggested fix (optional)
             <textarea name="suggestedFix" rows={3} defaultValue={text.suggestedFix ?? ""} className={`mt-1 ${INPUT}`} />
           </label>
-          <button className={`${BUTTON} mt-2`}>Save and confirm</button>
+          <button className={`${BUTTON} mt-2`}>{isHuman ? "Save" : "Save and confirm"}</button>
         </form>
       )}
     </FindingFrame>

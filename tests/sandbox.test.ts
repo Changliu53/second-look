@@ -68,6 +68,48 @@ describe("sandbox findings", () => {
   });
 });
 
+describe("a finding the visitor adds", () => {
+  const mine = {
+    filePath: "pasted-code", startLine: 3, endLine: 3, severity: "critical" as const,
+    category: "security" as const, explanation: "MY_OWN_FINDING", suggestedFix: null,
+  };
+
+  it("is added as confirmed, marked as written by a person, with a fresh id", () => {
+    const findings = sandboxReducer(toSandboxFindings(RAW), { type: "add", finding: mine });
+
+    expect(findings).toHaveLength(3);
+    expect(findings[2]).toMatchObject({ id: 3, source: "human", status: "confirmed", confidence: 1 });
+    expect(countByStatus(findings)).toEqual({ pending: 2, confirmed: 1, rejected: 0 });
+  });
+
+  it("is published with the AI findings the reviewer confirmed", () => {
+    const files = parseUnifiedDiff(toReviewableDiff("a\nb\nc"));
+    const findings = sandboxReducer(toSandboxFindings(RAW), { type: "add", finding: mine });
+
+    const payload = buildReviewPayload({
+      headSha: "", findings, files, reviewerLogin: "you", reviewerNote: null,
+      summary: { whatChanged: "x", riskLevel: "high", doubleCheck: [] },
+    });
+
+    expect(JSON.stringify(payload)).toContain("MY_OWN_FINDING");
+    expect(payload.comments.map((c) => c.line)).toEqual([3]);
+  });
+
+  it("can be removed, and an AI finding cannot", () => {
+    const withMine = sandboxReducer(toSandboxFindings(RAW), { type: "add", finding: mine });
+
+    expect(sandboxReducer(withMine, { type: "remove", id: 3 })).toHaveLength(2);
+    expect(sandboxReducer(withMine, { type: "remove", id: 1 })).toHaveLength(3);
+  });
+
+  it("is rewritten in place when edited, with no separate original", () => {
+    const withMine = sandboxReducer(toSandboxFindings(RAW), { type: "add", finding: mine });
+    const edited = sandboxReducer(withMine, { type: "edit", id: 3, explanation: "CLEARER", suggestedFix: "Do X" });
+
+    expect(edited[2]).toMatchObject({ explanation: "CLEARER", suggestedFix: "Do X", editedExplanation: null });
+  });
+});
+
 describe("built-in examples", () => {
   it.each(EXAMPLES.map((e) => e.id))("%s has a saved result that matches the schema", (id) => {
     const saved = getSavedResult(id);

@@ -61,11 +61,15 @@ export function FindingHeader({ finding }: { finding: Finding }) {
       <span className="font-mono text-xs text-ink-soft" title={finding.filePath}>
         {lineLabel(finding)}
       </span>
-      <span className="text-xs text-ink-soft">
-        {Math.round(finding.confidence * 100)}% sure
-      </span>
+      {finding.source === "human" ? (
+        <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-white">
+          Added by reviewer
+        </span>
+      ) : (
+        <span className="text-xs text-ink-soft">{Math.round(finding.confidence * 100)}% sure</span>
+      )}
       <span className={`ml-auto text-[0.6875rem] font-semibold uppercase tracking-wide ${STATUS_TEXT[finding.status]}`}>
-        {finding.status}
+        {finding.source === "human" ? "written" : finding.status}
         {finding.decidedBy && ` by ${finding.decidedBy}`}
       </span>
     </div>

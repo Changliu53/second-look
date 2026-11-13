@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import {
+  addHumanFinding,
   claimReviewForPublish,
   decideFinding,
   editFinding,
@@ -12,6 +13,8 @@ import {
   listPublishedReviews,
   recordGithubReviewId,
   releasePublishClaim,
+  removeHumanFinding,
+  updateHumanFinding,
   type FindingDecision,
   type ReviewDetail,
   type ReviewListItem,
@@ -23,6 +26,7 @@ import { buildReviewPayload, type Resolution } from "@/github/publish";
 import type { PullRequestRef } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
+import { CATEGORIES, SEVERITIES } from "@/review/schema";
 import { canReviewRepository } from "@/github/access";
 import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
 
@@ -51,6 +55,9 @@ export const ACTION_ERRORS = {
   pending_findings: "Confirm or reject every finding before publishing.",
   no_summary: "This review has no summary to publish.",
   invalid_edit: "The explanation cannot be empty or longer than 5,000 characters.",
+  invalid_finding:
+    "The finding was not saved. It needs a file from this pull request, a line, and an explanation.",
+  not_ready: "Findings can be added once the AI review has finished.",
   github_rejected: "GitHub did not accept the review. Nothing was published. Try again.",
 } as const;
 
@@ -235,7 +242,108 @@ export async function editFindingFor(
   if (problem) {
     return fail(problem);
   }
-  await editFinding(deps.db, findingId, edit.data, login);
+  if (loaded.finding.source === "human") {
+    // The reviewer is rewriting their own text; there is no AI original.
+    await updateHumanFinding(deps.db, findingId, edit.data);
+  } else {
+    await editFinding(deps.db, findingId, edit.data, login);
+  }
+  return { ok: true };
+}
+
+const optionalText = z
+  .string()
+  .trim()
+  .max(5_000)
+  .transform((value) => (value === "" ? null : value));
+
+export const newFindingSchema = z
+  .object({
+    filePath: z.string().trim().min(1).max(500),
+    startLine: z.coerce.number().int().positive(),
+    // Left empty in the form for a single line.
+    endLine: z.preprocess(
+      (value) => (value === "" || value === null ? undefined : value),
+      z.coerce.number().int().positive().optional(),
+    ),
+    severity: z.enum(SEVERITIES),
+    category: z.enum(CATEGORIES),
+    explanation: z.string().trim().min(1).max(5_000),
+    suggestedFix: optionalText,
+  })
+  .refine((value) => value.endLine === undefined || value.endLine >= value.startLine);
+
+export type AddFindingResult =
+  | { ok: true; findingId: number }
+  | { ok: false; error: ActionErrorCode };
+
+/**
+ * Adds a finding the reviewer wrote: something the AI missed. It is stored
+ * as confirmed and goes out with the rest when the review is published.
+ */
+export async function addFindingFor(
+  reviewId: number,
+  rawFinding: unknown,
+  login: string,
+  deps: DashboardDeps,
+): Promise<AddFindingResult> {
+  const parsed = newFindingSchema.safeParse(rawFinding);
+  if (!parsed.success) {
+    return { ok: false, error: "invalid_finding" };
+  }
+  const loaded = await loadReviewFor(reviewId, login, deps);
+  if (!loaded) {
+    return { ok: false, error: "not_found" };
+  }
+  const { detail, github } = loaded;
+  const problem = editableProblem(detail);
+  if (problem) {
+    return { ok: false, error: problem };
+  }
+  // A too-large review has no AI findings, which is exactly when a reviewer
+  // may want to write their own.
+  if (detail.review.status !== "completed" && detail.review.status !== "too_large") {
+    return { ok: false, error: "not_ready" };
+  }
+
+  // The file has to be one this pull request changes. If GitHub cannot be
+  // reached to check, the finding is refused, not saved unverified.
+  let changedPaths: Set<string>;
+  try {
+    const diff = await getReviewDiff(github, detail.repository, diffTarget(detail));
+    changedPaths = new Set(parseUnifiedDiff(diff ?? "").map((file) => file.path));
+  } catch (error) {
+    logEvent("add_finding_diff_failed", { reviewId, error: safeErrorCode(error) });
+    return { ok: false, error: "invalid_finding" };
+  }
+  if (!changedPaths.has(parsed.data.filePath)) {
+    return { ok: false, error: "invalid_finding" };
+  }
+
+  const finding = await addHumanFinding(
+    deps.db,
+    reviewId,
+    { ...parsed.data, endLine: parsed.data.endLine ?? parsed.data.startLine },
+    login,
+  );
+  return { ok: true, findingId: finding.id };
+}
+
+/** Deletes a finding the reviewer added. AI findings are rejected, not deleted. */
+export async function removeFindingFor(
+  findingId: number,
+  login: string,
+  deps: DashboardDeps,
+): Promise<ActionResult> {
+  const loaded = await loadFindingFor(findingId, login, deps);
+  if (!loaded || loaded.finding.source !== "human") {
+    return fail("not_found");
+  }
+  const problem = editableProblem(loaded.detail);
+  if (problem) {
+    return fail(problem);
+  }
+  await removeHumanFinding(deps.db, findingId);
   return { ok: true };
 }
 

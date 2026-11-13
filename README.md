@@ -2,7 +2,7 @@
 
 In small teams, people who are not engineers now ship features written by AI tools, and one engineer has to review all of it. Second Look is a tool for that engineer: it does the first pass on each pull request, and the engineer confirms, rejects, or rewrites every finding before the author sees anything.
 
-![The home page: C# code with an access-control finding inline, confirmed by the reviewer, and a progress bar counting pending, confirmed and rejected findings](docs/home.jpg)
+![The playground: example changes on the left, and on the right four findings on a C# file, two confirmed, one of them written by the reviewer](docs/home.jpg)
 
 ## Try it
 
@@ -31,7 +31,7 @@ flowchart LR
 
    ![A running review: three steps with a timer](docs/live-progress.jpg)
 
-3. **An engineer decides.** Findings sit inline in the diff. Confirm, reject with a reason, or rewrite each one. `j` `k` `n` move between findings and `c` `r` `e` act on them.
+3. **An engineer decides.** Findings sit inline in the diff. Confirm, reject with a reason, or rewrite each one. `j` `k` `n` move between findings and `c` `r` `e` act on them. To add something the first pass missed, click a line number and write the finding yourself.
 
    ![The reviewer's page on a C# pull request: two access-control findings inline with Confirm, Reject and Edit](docs/dashboard.jpg)
 
@@ -143,6 +143,7 @@ npm test                 # unit and database tests, no network needed
 npm run typecheck
 npm run eval             # calls the Anthropic API
 npm run examples:build   # regenerates the saved example results on the home page
+npm run usage            # tokens and rough cost of the reviews in the database
 ```
 
 ## Stack
@@ -157,7 +158,6 @@ Design choices and the alternatives that were rejected are in [DECISIONS.md](DEC
 - One model call per pull request. Pull requests over 120,000 characters of diff are refused, not split into chunks.
 - The model sees the diff and the changed files, not the rest of the repository. It can miss bugs that depend on other files, and it can be wrong about whether a library function exists.
 - The prompt-injection defence lowers the risk and does not remove it. A human confirms every finding for that reason.
-- A reviewer cannot add their own findings in the dashboard yet.
 - The follow-up verdicts (fixed, still there) are the model's reading of the new commit. They save the reviewer time; they do not replace looking.
 - The fix prompt is built from findings a human confirmed, but its text was first written by a model about code that is not trusted. It tells the receiving tool to treat findings as descriptions, which lowers the risk and does not remove it.
 - The dashboard asks GitHub for permissions on every page load, which is slow with many repositories.

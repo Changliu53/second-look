@@ -205,3 +205,14 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What:** `getReviewDiff` keeps diffs for five minutes, keyed by repository, pull request, and commit.
 **Why:** The review page re-renders after every Confirm or Reject and was asking GitHub for the same diff each time, so every click waited on a network round trip.
 **Rejected:** A shared cache such as Redis. A cold serverless instance costs one extra request, which does not justify a new service.
+
+## 39. A reviewer can write a finding, and it starts confirmed
+**What:** Clicking a line number in the diff opens a form for the reviewer's own finding. It is stored with `source = human` and `status = confirmed`. It can be edited in place or removed; it is never "rejected".
+**Why:** The first pass misses things, and a reviewer who spots one should not have to leave the tool and comment on GitHub separately. A finding the reviewer wrote needs nobody's confirmation, least of all their own, so it does not hold up publishing.
+**Rejected:** Creating it as pending and making the reviewer confirm it, for symmetry with AI findings. That is a click with no decision in it.
+**Details:** The file must be one the pull request changes, checked against the diff from GitHub. AI findings can be rejected but not deleted, so the decision stays on record; human findings can be deleted because there is nothing to keep a record of.
+
+## 40. Site navigation is in the top bar only
+**What:** Every page has the same top bar with the links that go to other pages. The playground's left pane holds only controls that change what the right pane shows.
+**Why:** The first layout put the site links inside the playground's side panel, next to the example list. They looked like tabs for the panel and then left the page. Other playgrounds and review tools keep global navigation at the top and use side panels for things local to the page.
+**Rejected:** Keeping the links in the panel and restyling them. The problem was where they were, not how they looked.

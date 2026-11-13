@@ -9,12 +9,14 @@ import {
 } from "@/db/queries";
 import {
   ACTION_ERRORS,
+  addFindingFor,
   decideFindingFor,
   editFindingFor,
   getDemoReview,
   getReviewFor,
   listReviewsFor,
   publishReviewFor,
+  removeFindingFor,
   type DashboardDeps,
 } from "@/dashboard/service";
 import { clearDiffCache, getReviewDiff } from "@/dashboard/diff-cache";
@@ -301,6 +303,87 @@ describe("publishReviewFor", () => {
 
     expect(late).toEqual({ ok: false, error: "already_published" });
     expect((await findings())[0]?.status).toBe("confirmed");
+  });
+});
+
+describe("findings the reviewer adds", () => {
+  const mine = {
+    filePath: "src/cart.ts", startLine: "10", endLine: "", severity: "critical",
+    category: "security", explanation: "  REVIEWER_FOUND_THIS  ", suggestedFix: "",
+  };
+
+  it("stores the finding as confirmed and written by the reviewer", async () => {
+    const outcome = await addFindingFor(reviewId, mine, "lee", deps);
+
+    expect(outcome.ok).toBe(true);
+    const added = (await findings()).find((f) => f.source === "human");
+    expect(added).toMatchObject({
+      filePath: "src/cart.ts", startLine: 10, endLine: 10, severity: "critical", category: "security",
+      explanation: "REVIEWER_FOUND_THIS", suggestedFix: null, status: "confirmed", decidedBy: "lee", confidence: 1,
+    });
+  });
+
+  it("publishes it with the AI findings and counts it for the check", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "rejected", rejectionReason: null }, "lee", deps);
+    }
+    await addFindingFor(reviewId, mine, "lee", deps);
+
+    await publishReviewFor(reviewId, null, "lee", deps);
+
+    const payload = github.reviews[0]!.payload;
+    expect(payload.comments.map((c) => c.line)).toEqual([10]);
+    expect(payload.comments[0]?.body).toContain("REVIEWER_FOUND_THIS");
+    // Both AI findings were rejected, so the block comes from the reviewer's own.
+    expect(github.lastCheckUpdate()).toMatchObject({ conclusion: "action_required" });
+  });
+
+  it("does not hold up publishing: it needs no confirmation", async () => {
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+    await addFindingFor(reviewId, mine, "lee", deps);
+
+    expect((await publishReviewFor(reviewId, null, "lee", deps)).ok).toBe(true);
+  });
+
+  it("refuses a file that is not part of the pull request, and incomplete input", async () => {
+    const wrongFile = await addFindingFor(reviewId, { ...mine, filePath: "src/elsewhere.ts" }, "lee", deps);
+    const noText = await addFindingFor(reviewId, { ...mine, explanation: "   " }, "lee", deps);
+    const badSeverity = await addFindingFor(reviewId, { ...mine, severity: "blocker" }, "lee", deps);
+    const backwards = await addFindingFor(reviewId, { ...mine, startLine: "12", endLine: "10" }, "lee", deps);
+
+    expect([wrongFile, noText, badSeverity, backwards].map((r) => r.ok)).toEqual([false, false, false, false]);
+    expect((await findings()).filter((f) => f.source === "human")).toEqual([]);
+  });
+
+  it("refuses users without write access, and reviews that are already published", async () => {
+    expect((await addFindingFor(reviewId, mine, "reader", deps)).ok).toBe(false);
+
+    for (const finding of await findings()) {
+      await decideFindingFor(finding.id, { status: "confirmed" }, "lee", deps);
+    }
+    await publishReviewFor(reviewId, null, "lee", deps);
+    expect(await addFindingFor(reviewId, mine, "lee", deps)).toEqual({ ok: false, error: "already_published" });
+  });
+
+  it("lets the reviewer rewrite it in place and remove it", async () => {
+    const added = await addFindingFor(reviewId, mine, "lee", deps);
+    if (!added.ok) throw new Error("expected the finding to be added");
+
+    await editFindingFor(added.findingId, { explanation: "CLEARER_TEXT", suggestedFix: "Do X" }, "lee", deps);
+    const edited = (await findings()).find((f) => f.id === added.findingId);
+    expect(edited).toMatchObject({ explanation: "CLEARER_TEXT", suggestedFix: "Do X", editedExplanation: null });
+
+    expect((await removeFindingFor(added.findingId, "lee", deps)).ok).toBe(true);
+    expect((await findings()).some((f) => f.id === added.findingId)).toBe(false);
+  });
+
+  it("does not let an AI finding be removed, only rejected", async () => {
+    const [ai] = await findings();
+
+    expect((await removeFindingFor(ai!.id, "lee", deps)).ok).toBe(false);
+    expect(await findings()).toHaveLength(2);
   });
 });
 

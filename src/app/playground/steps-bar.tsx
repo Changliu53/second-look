@@ -13,7 +13,7 @@ const LABELS: Record<PlaygroundStep, string> = {
   arrives: "Pull request",
   review: "Review",
   publish: "Publish",
-  author: "What the author gets",
+  author: "Result on GitHub",
 };
 
 export type StepStatus = {
@@ -46,6 +46,7 @@ function StepButton({
     <button
       type="button"
       aria-current={current ? "step" : undefined}
+      aria-label={`Step ${number}: ${label}`}
       disabled={disabled}
       onClick={onClick}
       className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
@@ -53,7 +54,8 @@ function StepButton({
       <span className={`grid size-5 shrink-0 place-items-center rounded-full border text-[0.6875rem] font-semibold ${circle}`}>
         {done ? "✓" : number}
       </span>
-      <span className={current ? "font-semibold text-ink" : "text-ink-soft"}>{label}</span>
+      {/* A phone has room for one label: the step you are on. */}
+      <span className={current ? "font-semibold text-ink" : "hidden text-ink-soft sm:inline"}>{label}</span>
     </button>
   );
 }
@@ -74,7 +76,7 @@ export function StepsBar({
 }) {
   return (
     <nav aria-label="Steps of a review">
-      <ol className="flex flex-wrap items-center gap-1">
+      <ol className="flex items-center gap-1">
         {PLAYGROUND_STEPS.map((step, index) => {
           const previous = PLAYGROUND_STEPS[index - 1];
           return (
@@ -82,7 +84,7 @@ export function StepsBar({
               {previous && (
                 <li
                   aria-hidden
-                  className={`h-0.5 w-5 rounded-full transition-colors ${status[previous].done ? "bg-green-700" : "bg-slate-300"}`}
+                  className={`h-0.5 w-3 rounded-full transition-colors sm:w-5 ${status[previous].done ? "bg-green-700" : "bg-slate-300"}`}
                 />
               )}
               <li>

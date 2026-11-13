@@ -182,6 +182,8 @@ export function Workbench({ examples, selected, saved }: WorkbenchProps) {
     if (next !== "arrives") {
       setFirstPassDone(true);
     }
+    // A message that pointed at another step has done its job.
+    setToast(null);
     setStep(next);
     scrollResultToTop();
   }
@@ -529,7 +531,8 @@ function ResultPane({
     <div className="animate-rise-in">
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-edge bg-surface-raised/95 px-5 py-2.5 backdrop-blur">
         <StepsBar current={step} status={status} onStep={onStep} />
-        <p className="text-xs text-ink-soft">
+        {/* Not on a phone: the bar at the bottom already says what is left. */}
+        <p className="hidden text-xs text-ink-soft sm:block">
           <span className="font-semibold text-ink">{counts.pending}</span> pending
           <span className="mx-1.5">·</span>
           <span className="font-semibold text-green-700">{counts.confirmed}</span> confirmed
@@ -691,8 +694,14 @@ function ResultPane({
                   </button>
                 </ReasonTip>
                 <span className="text-xs text-ink-soft">
-                  {blocked ??
-                    `All decided: ${counts.confirmed} to send, ${counts.rejected} rejected.`}
+                  {/* The long form is also the tooltip, which a phone cannot hover. */}
+                  <span className="sm:hidden">
+                    {blocked ? `${counts.pending} still pending` : `${counts.confirmed} to send`}
+                  </span>
+                  <span className="hidden sm:inline">
+                    {blocked ??
+                      `All decided: ${counts.confirmed} to send, ${counts.rejected} rejected.`}
+                  </span>
                 </span>
               </div>
             )}

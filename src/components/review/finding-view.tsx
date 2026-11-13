@@ -156,7 +156,7 @@ export function FindingShell({
     <FindingFrame finding={finding}>
       <details data-collapsible className="peer group/fold">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm">
-          <span className={`w-24 shrink-0 text-xs font-semibold ${decided.className}`}>
+          <span className={`shrink-0 text-xs font-semibold sm:w-24 ${decided.className}`}>
             {decided.mark} {decided.label}
           </span>
           <SeverityBadge severity={finding.severity} />

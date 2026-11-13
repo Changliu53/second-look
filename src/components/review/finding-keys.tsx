@@ -194,11 +194,12 @@ export function FindingKeys({
         <button
           type="button"
           disabled={pending === 0}
+          aria-label="Next pending finding"
           onClick={goToNextPending}
           className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface-raised px-2.5 py-1 text-xs font-medium transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-edge"
         >
-          Next pending
-          <kbd className={KBD}>n</kbd>
+          Next<span className="hidden sm:inline"> pending</span>
+          <kbd className={`${KBD} hidden sm:inline`}>n</kbd>
         </button>
       </ReasonTip>
     </div>

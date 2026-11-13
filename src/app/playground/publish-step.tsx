@@ -93,12 +93,12 @@ export function PublishStep({
             {MODES.map((mode) => (
               <label
                 key={mode.value}
-                className="flex cursor-pointer gap-3 rounded-md border border-edge bg-surface-raised p-3 transition hover:border-slate-400 has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:disabled]:cursor-default"
+                className="flex cursor-pointer items-start gap-3 rounded-md border border-edge bg-surface-raised p-3 transition hover:border-slate-400 has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:disabled]:cursor-default"
               >
                 <input
                   type="radio"
                   name="resolution"
-                  className="mt-1"
+                  className="mt-1 shrink-0"
                   checked={resolution === mode.value}
                   disabled={published !== null}
                   onChange={() => setChosen(mode.value)}

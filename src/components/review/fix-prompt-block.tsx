@@ -19,12 +19,14 @@ export function FixPromptBlock({
 }) {
   return (
     <details open={open} className="rounded-lg border border-edge bg-surface-raised">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5">
-        <span>
-          <span className={SECTION_LABEL}>{title}</span>
-          <span className="ml-2 text-xs text-ink-soft">{hint}</span>
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-2.5">
+        <span className="min-w-0">
+          <span className={`${SECTION_LABEL} mr-2`}>{title}</span>
+          <span className="block text-xs text-ink-soft sm:inline">{hint}</span>
         </span>
-        <CopyButton text={prompt} label="Copy prompt" />
+        <span className="shrink-0 whitespace-nowrap">
+          <CopyButton text={prompt} label="Copy prompt" />
+        </span>
       </summary>
       <pre className="max-h-96 overflow-auto whitespace-pre-wrap border-t border-edge bg-slate-50 p-4 font-mono text-xs leading-relaxed">
         {prompt}

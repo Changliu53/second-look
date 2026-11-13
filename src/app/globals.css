@@ -94,6 +94,8 @@
 }
 
 body {
+  /* A tooltip waiting off the right edge must not make a phone scroll sideways. */
+  overflow-x: clip;
   background: var(--color-surface);
   color: var(--color-ink);
   font-feature-settings: "tnum" 1;

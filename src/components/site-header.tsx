@@ -29,14 +29,15 @@ const NAV = [
  */
 function NavLinks({ current }: { current?: string }) {
   return (
-    <nav aria-label="Site" className="flex items-center gap-5 text-sm">
+    // On a phone the links take a row of their own, under the name.
+    <nav aria-label="Site" className="order-last flex w-full items-center gap-5 text-sm sm:order-none sm:w-auto">
       {NAV.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           aria-current={current === item.href ? "page" : undefined}
           // An underline on the current page, the usual top-bar convention.
-          className="border-b-2 border-transparent py-3 text-ink-soft transition hover:text-ink aria-[current]:border-slate-900 aria-[current]:font-medium aria-[current]:text-ink"
+          className="border-b-2 border-transparent py-2 text-ink-soft transition hover:text-ink aria-[current]:border-slate-900 aria-[current]:font-medium aria-[current]:text-ink sm:py-3"
         >
           {item.label}
         </Link>
@@ -61,7 +62,7 @@ export function SiteHeader({
 }) {
   return (
     <header className="shrink-0 border-b border-edge bg-surface-raised">
-      <div className={`flex flex-wrap items-center gap-x-8 gap-y-1 px-5 ${wide ? "" : "mx-auto max-w-6xl"}`}>
+      <div className={`flex flex-wrap items-center gap-x-8 px-5 ${wide ? "" : "mx-auto max-w-6xl"}`}>
         <Link href="/" className="flex items-center gap-2 py-2.5 font-semibold tracking-tight">
           <Logo />
           Second Look
@@ -70,7 +71,7 @@ export function SiteHeader({
         <div className="ml-auto flex items-center gap-4 text-sm">
           {children}
           <a href={REPO_URL} className="text-ink-soft transition hover:text-ink">
-            Source on GitHub
+            <span className="hidden sm:inline">Source on </span>GitHub
           </a>
           <ThemeToggle />
         </div>

@@ -33,10 +33,12 @@ dashboard then gives you a checkout command and a prompt for a coding agent.
 | Name | What the change does | What is wrong with it |
 |---|---|---|
 | `work-order-export` | Adds a CSV export of work orders | Turns off the tenant filter, has no authorization policy, writes a file to a fixed path on the server, builds CSV by hand |
-| `rename-customer-phone` | Renames a column | Written as drop then add, so existing phone numbers are deleted. No designer file or snapshot change |
+| `rename-customer-phone` | Renames a column | Written as drop then add, so existing phone numbers are deleted. No designer file, and the model snapshot is not updated |
 
 Each scenario folder has `change/` (the first commit), `fix/` (the author's
-second commit), `title.txt`, and `body.md`. Files are copied over the sample
+second commit), `title.txt`, and `body.md`. The C# in these folders was written
+by hand and has not been compiled; the designer and snapshot files follow the
+shape EF Core generates. Files are copied over the sample
 repository as they are, so adding a scenario is adding a folder.
 
 Set `SAMPLE_REPO_DIR` if the sample repository is somewhere else. Set

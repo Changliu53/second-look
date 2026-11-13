@@ -69,7 +69,7 @@ function Row({
   return (
     <>
       <div className={`group/line flex ${plain ? "" : LINE_STYLES[line.kind]}`}>
-        <span className={`${slots.lineNumber ? "w-16" : "w-12"} shrink-0 select-none pr-3 text-right text-slate-400`}>
+        <span className={`${slots.lineNumber ? "w-16" : "w-12"} shrink-0 select-none pr-3 text-right text-slate-500`}>
           {line.newLine === null ? "" : (slots.lineNumber?.(line.newLine) ?? line.newLine)}
         </span>
         {!plain && (

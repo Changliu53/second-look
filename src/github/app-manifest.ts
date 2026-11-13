@@ -62,8 +62,12 @@ export const manifestConversionSchema = z.object({
 
 export type ManifestConversion = z.infer<typeof manifestConversionSchema>;
 
-/** The .env lines for a newly created app. The PEM is put on one line. */
-export function envLinesFor(conversion: ManifestConversion, appUrl: string): string[] {
+/**
+ * The .env lines for a newly created app. The PEM is put on one line.
+ * APP_URL is not included: .env.local usually keeps it at localhost for
+ * development, and the deployment URL belongs in the host's settings.
+ */
+export function envLinesFor(conversion: ManifestConversion): string[] {
   const pem = conversion.pem.trim().replace(/\r?\n/g, "\\n");
   return [
     `GITHUB_APP_ID=${conversion.id}`,
@@ -71,17 +75,63 @@ export function envLinesFor(conversion: ManifestConversion, appUrl: string): str
     `GITHUB_WEBHOOK_SECRET=${conversion.webhook_secret}`,
     `AUTH_GITHUB_ID=${conversion.client_id}`,
     `AUTH_GITHUB_SECRET=${conversion.client_secret}`,
-    `APP_URL=${appUrl.replace(/\/+$/, "")}`,
   ];
 }
 
-/** Names of variables in `existingEnv` that the new lines would duplicate. */
-export function conflictingKeys(existingEnv: string, newLines: string[]): string[] {
-  const existing = new Set(
+/** The variables the script writes. Checked before anything is created. */
+export const APP_ENV_KEYS = [
+  "GITHUB_APP_ID",
+  "GITHUB_APP_PRIVATE_KEY",
+  "GITHUB_WEBHOOK_SECRET",
+  "AUTH_GITHUB_ID",
+  "AUTH_GITHUB_SECRET",
+] as const;
+
+function keyOf(line: string): string {
+  return line.split("=")[0]?.trim() ?? "";
+}
+
+function valueOf(line: string): string {
+  return line.slice(line.indexOf("=") + 1).trim();
+}
+
+function isAssignment(line: string): boolean {
+  return line.includes("=") && !line.trim().startsWith("#");
+}
+
+/**
+ * Names from `keys` that already have a real value in the env file. An empty
+ * placeholder such as "GITHUB_APP_ID=", which is what a fresh copy of
+ * .env.example contains, does not count.
+ */
+export function keysAlreadySet(existingEnv: string, keys: readonly string[]): string[] {
+  const set = new Set(
     existingEnv
       .split("\n")
-      .map((line) => line.split("=")[0]?.trim() ?? "")
-      .filter((key) => key !== "" && !key.startsWith("#")),
+      .filter((line) => isAssignment(line) && valueOf(line) !== "")
+      .map(keyOf),
   );
-  return newLines.map((line) => line.split("=")[0] ?? "").filter((key) => existing.has(key));
+  return keys.filter((key) => set.has(key));
+}
+
+/**
+ * Returns the env file with the new lines added. A new line replaces an empty
+ * placeholder for the same key in place; otherwise it is appended.
+ */
+export function mergeEnv(existingEnv: string, newLines: string[]): string {
+  const pending = new Map(newLines.map((line) => [keyOf(line), line]));
+
+  const merged = existingEnv.split("\n").map((line) => {
+    const replacement = isAssignment(line) ? pending.get(keyOf(line)) : undefined;
+    if (replacement === undefined || valueOf(line) !== "") {
+      return line;
+    }
+    pending.delete(keyOf(line));
+    return replacement;
+  });
+
+  const body = merged.join("\n").replace(/\n+$/, "");
+  const appended = [...pending.values()];
+  const parts = body === "" ? appended : [body, ...appended];
+  return `${parts.join("\n")}\n`;
 }

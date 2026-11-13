@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildManifest, conflictingKeys, envLinesFor, manifestConversionSchema } from "@/github/app-manifest";
+import {
+  APP_ENV_KEYS,
+  buildManifest,
+  envLinesFor,
+  keysAlreadySet,
+  manifestConversionSchema,
+  mergeEnv,
+} from "@/github/app-manifest";
 
 describe("buildManifest", () => {
   const manifest = buildManifest("Second Look (acme)", "https://reviews.acme.test/", "http://localhost:8787/callback");
@@ -25,14 +32,10 @@ describe("envLinesFor", () => {
     client_id: "Iv1.abc", client_secret: "secret-value", webhook_secret: "hook-value",
     pem: "-----BEGIN RSA PRIVATE KEY-----\nLINE1\nLINE2\n-----END RSA PRIVATE KEY-----\n",
   });
-  const lines = envLinesFor(conversion, "https://reviews.acme.test/");
+  const lines = envLinesFor(conversion);
 
   it("writes every variable the app reads", () => {
-    expect(lines.map((line) => line.split("=")[0])).toEqual([
-      "GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_WEBHOOK_SECRET",
-      "AUTH_GITHUB_ID", "AUTH_GITHUB_SECRET", "APP_URL",
-    ]);
-    expect(lines).toContain("APP_URL=https://reviews.acme.test");
+    expect(lines.map((line) => line.split("=")[0])).toEqual([...APP_ENV_KEYS]);
   });
 
   it("puts the private key on one line so it survives a .env file", () => {
@@ -49,10 +52,39 @@ describe("envLinesFor", () => {
   });
 });
 
-describe("conflictingKeys", () => {
-  it("names variables that are already set, ignoring comments and blanks", () => {
-    const existing = "# GITHUB_APP_ID=old\nDATABASE_URL=x\n\nAPP_URL=http://localhost:3000\n";
-    expect(conflictingKeys(existing, ["GITHUB_APP_ID=1", "APP_URL=https://a.test"])).toEqual(["APP_URL"]);
-    expect(conflictingKeys("", ["GITHUB_APP_ID=1"])).toEqual([]);
+describe("keysAlreadySet", () => {
+  it("does not count the empty placeholders of a fresh .env.example copy", () => {
+    const freshCopy = "GITHUB_APP_ID=\nGITHUB_APP_PRIVATE_KEY=\nAPP_URL=http://localhost:3000\n";
+    expect(keysAlreadySet(freshCopy, APP_ENV_KEYS)).toEqual([]);
+  });
+
+  it("names keys that have a real value, ignoring comments", () => {
+    const existing = "# GITHUB_WEBHOOK_SECRET=old\nGITHUB_APP_ID=123\nAUTH_GITHUB_ID= \n";
+    expect(keysAlreadySet(existing, APP_ENV_KEYS)).toEqual(["GITHUB_APP_ID"]);
+  });
+});
+
+describe("mergeEnv", () => {
+  it("fills empty placeholders in place and leaves everything else alone", () => {
+    const existing = "# Database\nDATABASE_URL=postgres://x\n\nGITHUB_APP_ID=\nAPP_URL=http://localhost:3000\n";
+    const merged = mergeEnv(existing, ["GITHUB_APP_ID=42", "AUTH_GITHUB_ID=Iv1.abc"]);
+
+    expect(merged).toBe(
+      "# Database\nDATABASE_URL=postgres://x\n\nGITHUB_APP_ID=42\nAPP_URL=http://localhost:3000\nAUTH_GITHUB_ID=Iv1.abc\n",
+    );
+  });
+
+  it("never leaves the same key defined twice", () => {
+    const merged = mergeEnv("GITHUB_APP_ID=\n", ["GITHUB_APP_ID=42"]);
+    expect(merged.match(/GITHUB_APP_ID=/g)).toHaveLength(1);
+  });
+
+  it("creates the content when there was no file", () => {
+    expect(mergeEnv("", ["GITHUB_APP_ID=42"])).toBe("GITHUB_APP_ID=42\n");
+  });
+
+  it("keeps a value that contains '=' intact", () => {
+    const merged = mergeEnv("AUTH_SECRET=abc==\n", ["GITHUB_APP_ID=42"]);
+    expect(merged).toBe("AUTH_SECRET=abc==\nGITHUB_APP_ID=42\n");
   });
 });

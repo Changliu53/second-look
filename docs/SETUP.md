@@ -54,16 +54,18 @@ npm run github-app:create -- https://your-vercel-url.vercel.app "Second Look (yo
 
 1. The command prints `http://localhost:8787`. Open it in a browser where you are signed in to GitHub.
 2. GitHub shows the app name. Click **Create GitHub App**.
-3. The browser returns to a page that says the app was created. `.env.local` now has `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, and `APP_URL`. The values are not printed.
+3. The browser returns to a page that says the app was created. `.env.local` now has `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `AUTH_GITHUB_ID`, and `AUTH_GITHUB_SECRET`. The values are not printed. `APP_URL` in `.env.local` is left as it is, since it normally points at localhost for development.
 4. Click the **install it on a repository** link on that page. Choose **Only select repositories** and pick the repository to review.
+
+If `.env.local` already has values for any of those variables, the command stops before creating anything.
 
 The app is private to your account and asks for the least it needs: read access to code, write access to checks and pull request reviews, and the `pull_request` event. App names are global on GitHub, so add something unique to the name.
 
-To do it by hand instead, create an app at https://github.com/settings/apps with those permissions, webhook URL `<your URL>/api/webhooks/github`, and callback URL `<your URL>/api/auth/callback/github`, then copy the same six values into `.env.local`.
+To do it by hand instead, create an app at https://github.com/settings/apps with those permissions, webhook URL `<your URL>/api/webhooks/github`, and callback URL `<your URL>/api/auth/callback/github`, then copy the same five values into `.env.local`.
 
 ## 6. Finish the Vercel configuration
 
-1. In Vercel, open **Settings**, **Environment Variables**, click **Add Environment Variable**, and paste the six new lines from `.env.local` into the Key field. Vercel splits them into six variables. Optionally add `DEMO_PULL_REQUEST` (for example `your-name/your-repo#2`) to show one published review on the public `/demo` page.
+1. In Vercel, open **Settings**, **Environment Variables**, click **Add Environment Variable**, and paste the five new lines from `.env.local` into the Key field. Vercel splits them into five variables. Add `APP_URL` with your Vercel URL (no trailing slash). Optionally add `DEMO_PULL_REQUEST` (for example `your-name/your-repo#2`) to show one published review on the public `/demo` page.
 2. Open **Deployments**, click the menu on the latest deployment, and choose **Redeploy** so the new variables take effect.
 
 ## 7. Try it

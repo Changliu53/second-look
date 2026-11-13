@@ -307,7 +307,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  const { detail, diff, rounds, history } = loaded;
+  const { detail, diff, rounds, history, newerReviewId } = loaded;
   // Only known codes are shown. Anything else in the URL is ignored.
   const query = await searchParams;
   const errorCode = query.error ?? "";
@@ -356,6 +356,14 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
                 {" "}
                 <a className="font-medium underline" href={pullRequestUrl(detail)}>
                   See it on GitHub
+                </a>
+              </>
+            )}
+            {newerReviewId !== null && (
+              <>
+                {" "}
+                <a className="font-medium underline" href={`/dashboard/reviews/${newerReviewId}`}>
+                  Open the review of the latest commit
                 </a>
               </>
             )}

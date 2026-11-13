@@ -11,6 +11,7 @@ import {
   getReviewDetail,
   isStaleRunning,
   latestActivity,
+  latestReviewId,
   listFindingEvents,
   listOpenReviews,
   listPublishedFindings,
@@ -171,15 +172,18 @@ export async function getReviewFor(
   diff: string | null;
   rounds: ReviewRound[];
   history: FindingEvent[];
+  /** The review of the pull request's latest commit, when it is not this one. */
+  newerReviewId: number | null;
 } | null> {
   const loaded = await loadReviewFor(reviewId, login, deps);
   if (!loaded) {
     return null;
   }
   const { detail } = loaded;
-  const [rounds, history] = await Promise.all([
+  const [rounds, history, latestId] = await Promise.all([
     listReviewRounds(deps.db, detail.pullRequest.id),
     listFindingEvents(deps.db, reviewId),
+    latestReviewId(deps.db, detail.pullRequest.id),
   ]);
 
   // The diff is fetched from GitHub instead of being stored. If GitHub is
@@ -190,7 +194,7 @@ export async function getReviewFor(
   } catch (error) {
     logEvent("dashboard_diff_fetch_failed", { reviewId, error: safeErrorCode(error) });
   }
-  return { detail, diff, rounds, history };
+  return { detail, diff, rounds, history, newerReviewId: latestId !== reviewId ? latestId : null };
 }
 
 /**

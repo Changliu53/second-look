@@ -181,6 +181,18 @@ describe("editFindingFor", () => {
   });
 });
 
+describe("a review of an older commit", () => {
+  it("points to the review of the latest commit", async () => {
+    const { review: newer } = await startGithubReview(db, { pullRequestId, headSha: "sha-2" });
+
+    const old = await getReviewFor(reviewId, "lee", deps);
+    const latest = await getReviewFor(newer.id, "lee", deps);
+
+    expect(old?.newerReviewId).toBe(newer.id);
+    expect(latest?.newerReviewId).toBeNull();
+  });
+});
+
 describe("prepareRerunFor", () => {
   async function failTheSeededReview() {
     const { review } = await startGithubReview(db, { pullRequestId, headSha: "sha-9" });

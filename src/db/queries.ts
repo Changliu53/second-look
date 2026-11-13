@@ -443,6 +443,17 @@ async function withFindingCounts(
   });
 }
 
+/** The newest review of a pull request: the one for its latest commit. */
+export async function latestReviewId(db: Database, pullRequestId: number): Promise<number | null> {
+  const rows = await db
+    .select({ id: reviews.id })
+    .from(reviews)
+    .where(eq(reviews.pullRequestId, pullRequestId))
+    .orderBy(desc(reviews.createdAt), desc(reviews.id))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
 /** Reviews a human still has to act on: open PR, not published, not superseded. */
 export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
   const rows = await db

@@ -13,9 +13,11 @@ export function Logo({ className = "size-5" }: { className?: string }) {
   );
 }
 
+// Playground: a sandbox, nothing is saved. Example review: one real pull
+// request after review, read-only. Dashboard: where signed-in reviewers work.
 const NAV = [
-  { href: "/", label: "Try it" },
-  { href: "/demo", label: "Reviewed PR" },
+  { href: "/", label: "Playground" },
+  { href: "/example", label: "Example review" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

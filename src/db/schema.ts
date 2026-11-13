@@ -55,6 +55,10 @@ export const findingStatusEnum = pgEnum("finding_status", [
 
 export const findingSourceEnum = pgEnum("finding_source", ["ai", "human"]);
 
+/** The steps of a running review, in order. */
+export const REVIEW_STAGES = ["fetching_diff", "reading_files", "model_reviewing"] as const;
+export type ReviewStage = (typeof REVIEW_STAGES)[number];
+
 /** The plain-English summary shown to a non-technical PR author. */
 export type ReviewSummary = {
   whatChanged: string;
@@ -114,6 +118,8 @@ export const reviews = pgTable(
     ),
     headSha: text("head_sha"),
     status: reviewStatusEnum("status").notNull().default("running"),
+    // What a running review is doing right now, shown live to the reviewer.
+    stage: text("stage").$type<ReviewStage>(),
     summary: jsonb("summary").$type<ReviewSummary>(),
     model: text("model"),
     inputTokens: integer("input_tokens"),

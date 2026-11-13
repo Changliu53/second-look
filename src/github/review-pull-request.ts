@@ -3,6 +3,7 @@ import {
   completeReview,
   failReview,
   setCheckRunId,
+  setReviewStage,
   startGithubReview,
   upsertPullRequest,
   upsertRepository,
@@ -18,6 +19,7 @@ import {
   type ReviewResult,
 } from "@/review/engine";
 import { getSkipReason } from "@/review/filters";
+import type { ReviewStage } from "@/db/schema";
 import type { FileContext } from "@/review/prompt";
 import { canReviewRepository } from "./access";
 import { checkRunFor, type CheckState } from "./check-run";
@@ -107,12 +109,17 @@ async function createCheck(
   }
 }
 
-/** Gathers the inputs from GitHub and runs the engine. */
+/**
+ * Gathers the inputs from GitHub and runs the engine. `onStage` is told as
+ * each step starts, so the dashboard can show progress while this runs.
+ */
 async function runReview(
   event: PullRequestEvent,
   repo: RepoRef,
   deps: ReviewDeps,
+  onStage: (stage: ReviewStage) => Promise<void>,
 ): Promise<ReviewResult> {
+  await onStage("fetching_diff");
   let diff: string;
   try {
     diff = await deps.github.getPullRequestDiff(repo, event.number);
@@ -123,6 +130,7 @@ async function runReview(
     throw error;
   }
 
+  await onStage("reading_files");
   // Read the rules from the base branch, not the PR head. Otherwise the
   // author of a PR could change the rules that review their own PR.
   const guidelines = await deps.github.getFileContent(
@@ -145,6 +153,7 @@ async function runReview(
     fileContents,
     guidelines: guidelines ?? undefined,
   };
+  await onStage("model_reviewing");
   return reviewChange(input, deps.model, deps.limits);
 }
 
@@ -192,7 +201,9 @@ export async function reviewPullRequest(event: PullRequestEvent, deps: ReviewDep
   const checkRunId = await createCheck(deps, repo, headSha, review.id);
 
   try {
-    const result = await runReview(event, repo, deps);
+    const result = await runReview(event, repo, deps, (stage) =>
+      setReviewStage(deps.db, review.id, stage),
+    );
 
     const stillCurrent = await completeReview(deps.db, review.id, result);
     if (!stillCurrent) {

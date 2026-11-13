@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_REASON, summarizeDecisions, type DecidedFinding } from "@/dashboard/insights";
+import { NO_REASON, summarizeDecisions, summarizeWait, type DecidedFinding } from "@/dashboard/insights";
 import type { FollowUpEntry } from "@/db/schema";
 
 function finding(overrides: Partial<DecidedFinding> = {}): DecidedFinding {
@@ -98,3 +98,32 @@ describe("summarizeDecisions", () => {
     expect(insights.followUp).toEqual({ fixed: 2, stillPresent: 1, unclear: 1 });
   });
 });
+
+describe("summarizeWait", () => {
+  const at = (minute: number) => new Date(Date.UTC(2026, 10, 13, 12, minute));
+
+  it("gives the median and longest wait from first pass to publish", () => {
+    const wait = summarizeWait([
+      { completedAt: at(0), publishedAt: at(10) },
+      { completedAt: at(0), publishedAt: at(50) },
+      { completedAt: at(0), publishedAt: at(30) },
+    ]);
+    expect(wait).toEqual({ median: 30, slowest: 50, count: 3 });
+  });
+
+  it("averages the two middle waits for an even count, and skips incomplete or negative ones", () => {
+    const wait = summarizeWait([
+      { completedAt: at(0), publishedAt: at(10) },
+      { completedAt: at(0), publishedAt: at(20) },
+      { completedAt: null, publishedAt: at(20) },
+      { completedAt: at(30), publishedAt: at(20) },
+    ]);
+    expect(wait).toEqual({ median: 15, slowest: 20, count: 2 });
+  });
+
+  it("is null when no review has both times", () => {
+    expect(summarizeWait([])).toBeNull();
+    expect(summarizeWait([{ completedAt: null, publishedAt: null }])).toBeNull();
+  });
+});
+

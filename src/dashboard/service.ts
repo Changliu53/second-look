@@ -537,7 +537,11 @@ export async function getInsightsFor(login: string, deps: DashboardDeps): Promis
         ],
   );
   return {
-    insights: summarizeDecisions(decided, published.flatMap((review) => review.followUp ?? [])),
+    insights: summarizeDecisions(
+      decided,
+      published.flatMap((review) => review.followUp ?? []),
+      published,
+    ),
     repositories: visible.map((repository) => `${repository.owner}/${repository.name}`),
     publishedReviews: published.length,
   };

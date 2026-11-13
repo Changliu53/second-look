@@ -928,7 +928,11 @@ export async function listPublishedFollowUps(db: Database, repositoryIds: number
     return [];
   }
   return db
-    .select({ followUp: reviews.followUp })
+    .select({
+      followUp: reviews.followUp,
+      completedAt: reviews.completedAt,
+      publishedAt: reviews.publishedAt,
+    })
     .from(reviews)
     .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
     .where(and(isNotNull(reviews.publishedAt), inArray(pullRequests.repositoryId, repositoryIds)));

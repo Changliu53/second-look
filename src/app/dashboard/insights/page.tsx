@@ -13,6 +13,21 @@ function percent(rate: number | null): string {
   return rate === null ? "none yet" : `${Math.round(rate * 100)}%`;
 }
 
+/** "45 min", "3 h 10 min", "2 days 4 h". */
+function duration(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rest = minutes % 60;
+    return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+  }
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  return `${days} day${days === 1 ? "" : "s"}${restHours ? ` ${restHours} h` : ""}`;
+}
+
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
@@ -121,6 +136,19 @@ export default async function InsightsPage() {
           </p>
         ) : (
           <>
+            {insights.waitMinutes && (
+              <p className="mt-6 rounded-lg border border-edge bg-surface-raised p-4 text-sm leading-relaxed">
+                <span className={SECTION_LABEL}>Waiting for a reviewer</span>
+                <br />
+                Half of the reviews were published within{" "}
+                <strong className="font-semibold">{duration(insights.waitMinutes.median)}</strong> of the
+                first pass finishing. The longest wait was {duration(insights.waitMinutes.slowest)}.{" "}
+                <span className="text-ink-soft">
+                  Over {plural(insights.waitMinutes.count, "review")}. While a review waits, the
+                  check on its pull request stays in progress.
+                </span>
+              </p>
+            )}
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Tile
                 label="Findings decided"

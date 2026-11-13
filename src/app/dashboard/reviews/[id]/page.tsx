@@ -12,13 +12,19 @@ import { ActivityLog } from "@/components/review/activity-log";
 import { ReviewProgress } from "@/components/review/review-progress";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
-import { BUTTON_APPROVE, BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
+import { BUTTON, BUTTON_APPROVE, BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { ACTION_ERRORS, getReviewFor, rerunProblem, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { fixPromptFor } from "@/github/publish";
 import { BUDGET_REACHED } from "@/github/review-pull-request";
-import { countByStatus, publishBlockedReason } from "@/sandbox/model";
-import { publishReviewAction, rerunReviewAction } from "../../actions";
+import {
+  BULK_NIT_MINIMUM,
+  BULK_NIT_REASON,
+  countByStatus,
+  pendingNits,
+  publishBlockedReason,
+} from "@/sandbox/model";
+import { publishReviewAction, rejectPendingNitsAction, rerunReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +93,17 @@ function ProgressBar({ detail, locked }: { detail: ReviewDetail; locked: boolean
           )}
         </p>
         <div className="ml-auto flex items-center gap-4">
+          {!locked && pendingNits(detail.findings).length >= BULK_NIT_MINIMUM && (
+            <form action={rejectPendingNitsAction}>
+              <input type="hidden" name="reviewId" value={detail.review.id} />
+              <button
+                className={BUTTON}
+                title={`Reject every pending nit with the reason "${BULK_NIT_REASON}". Each can be undone.`}
+              >
+                Reject {pendingNits(detail.findings).length} nits
+              </button>
+            </form>
+          )}
           {!locked && <FindingKeys pending={counts.pending} />}
           {!locked && <PublishShortcut pending={counts.pending} />}
         </div>

@@ -22,7 +22,10 @@ import { parseUnifiedDiff } from "@/review/diff";
 import { PASTED_FILE_NAME, toReviewableDiff } from "@/review/paste";
 import { CATEGORIES, SEVERITIES, type ReviewSummary } from "@/review/schema";
 import {
+  BULK_NIT_MINIMUM,
+  BULK_NIT_REASON,
   countByStatus,
+  pendingNits,
   publishBlockedReason,
   sandboxReducer,
   toSandboxFindings,
@@ -549,7 +552,18 @@ function ResultPane({
           <span className="mx-1.5">·</span>
           <span className="font-semibold text-ink">{counts.rejected}</span> rejected
         </p>
-        <div className="ml-auto">{step === "review" && !published && <FindingKeys pending={counts.pending} hints={false} />}</div>
+        <div className="ml-auto flex items-center gap-2">
+          {step === "review" && !published && pendingNits(findings).length >= BULK_NIT_MINIMUM && (
+            <button
+              className={BUTTON}
+              title={`Reject every pending nit with the reason "${BULK_NIT_REASON}". Each can be undone.`}
+              onClick={() => onAction({ type: "rejectPendingNits" })}
+            >
+              Reject {pendingNits(findings).length} nits
+            </button>
+          )}
+          {step === "review" && !published && <FindingKeys pending={counts.pending} hints={false} />}
+        </div>
       </div>
 
       <div className="mx-auto max-w-4xl p-5">

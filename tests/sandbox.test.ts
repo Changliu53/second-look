@@ -7,7 +7,9 @@ import { parseUnifiedDiff } from "@/review/diff";
 import { toReviewableDiff } from "@/review/paste";
 import type { ReviewFinding } from "@/review/schema";
 import {
+  BULK_NIT_REASON,
   countByStatus,
+  pendingNits,
   publishBlockedReason,
   sandboxReducer,
   toSandboxFindings,
@@ -160,3 +162,25 @@ describe("publishBlockedReason", () => {
     );
   });
 });
+
+describe("rejecting pending nits at once", () => {
+  it("rejects only pending nits from the first pass, with the bulk reason", () => {
+    const raw: ReviewFinding[] = [
+      { ...RAW[0]!, severity: "nit" },
+      { ...RAW[1]!, severity: "nit" },
+      { ...RAW[1]!, severity: "warning", startLine: 1, endLine: 1 },
+    ];
+    let findings = toSandboxFindings(raw);
+    findings = sandboxReducer(findings, { type: "confirm", id: 1 });
+
+    expect(pendingNits(findings).map((f) => f.id)).toEqual([2]);
+    findings = sandboxReducer(findings, { type: "rejectPendingNits" });
+
+    expect(findings.map((f) => [f.id, f.status, f.rejectionReason])).toEqual([
+      [1, "confirmed", null],
+      [2, "rejected", BULK_NIT_REASON],
+      [3, "pending", null],
+    ]);
+  });
+});
+

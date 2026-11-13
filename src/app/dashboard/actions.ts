@@ -15,7 +15,7 @@ import {
 import { dashboardDeps } from "./deps";
 import { after } from "next/server";
 import { startReview } from "@/github/run-review";
-import { prepareRerunFor } from "@/dashboard/service";
+import { prepareRerunFor, rejectPendingNitsFor } from "@/dashboard/service";
 
 /**
  * Server actions for the dashboard forms. Each one: read and validate the
@@ -172,5 +172,11 @@ export async function rerunReviewAction(formData: FormData): Promise<void> {
   revalidatePath("/dashboard");
   // A new commit since the failure gets a review row of its own.
   redirect(reviewPath(claimedId));
+}
+
+export async function rejectPendingNitsAction(formData: FormData): Promise<void> {
+  const login = await requireLogin();
+  const reviewId = idSchema.parse(formData.get("reviewId"));
+  finish(reviewId, await rejectPendingNitsFor(reviewId, login, dashboardDeps()));
 }
 

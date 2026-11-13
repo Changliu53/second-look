@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
 import {
@@ -19,12 +20,14 @@ import {
   getReviewFor,
   listReviewsFor,
   prepareRerunFor,
+  rejectPendingNitsFor,
   rerunProblem,
   publishReviewFor,
   removeFindingFor,
   type DashboardDeps,
 } from "@/dashboard/service";
 import { clearDiffCache, getReviewDiff } from "@/dashboard/diff-cache";
+import { findings as findingsTable } from "@/db/schema";
 import type { ReviewResult } from "@/review/engine";
 import { FakeGitHub } from "./helpers/fake-github";
 import { createTestDb, seedPullRequest } from "./helpers/test-db";
@@ -179,6 +182,22 @@ describe("editFindingFor", () => {
     expect(valid.ok).toBe(true);
     const [after] = await findings();
     expect(after).toMatchObject({ editedExplanation: "Clear text", editedSuggestedFix: null, status: "confirmed" });
+  });
+});
+
+describe("rejectPendingNitsFor", () => {
+  it("rejects pending nits only, records each, and refuses users without access", async () => {
+    // The seeded review has one critical and one warning: make the warning a nit.
+    const [critical, second] = await findings();
+    await db.update(findingsTable).set({ severity: "nit" }).where(eq(findingsTable.id, second!.id));
+
+    expect(await rejectPendingNitsFor(reviewId, "reader", deps)).toEqual({ ok: false, error: "not_found" });
+    const outcome = await rejectPendingNitsFor(reviewId, "lee", deps);
+
+    expect(outcome).toEqual({ ok: true });
+    const after = await findings();
+    expect(after.find((f) => f.id === critical!.id)?.status).toBe("pending");
+    expect(after.find((f) => f.id === second!.id)).toMatchObject({ status: "rejected", rejectionReason: "Too minor to send" });
   });
 });
 

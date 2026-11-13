@@ -41,6 +41,7 @@ import { canReviewRepository, PermissionCache } from "@/github/access";
 import { getReviewDiff, type ReviewDiffTarget } from "./diff-cache";
 import { summarizeDecisions, type DecidedFinding, type Insights } from "./insights";
 import { toCsv } from "@/lib/csv";
+import { BULK_NIT_REASON, pendingNits } from "@/sandbox/model";
 
 /**
  * Everything the dashboard can do, as plain functions. The Next.js pages and
@@ -271,6 +272,32 @@ export async function decideFindingFor(
   await decideFinding(deps.db, findingId, decision, login);
   const finishes = decision.status !== "pending" && isLastPending(loaded.detail, findingId);
   return finishes ? { ok: true, allDecided: true } : { ok: true };
+}
+
+/**
+ * Rejects every pending nit from the first pass in one go, with the reason
+ * "Too minor to send". Each one is recorded in the history as its own
+ * rejection, so the record does not depend on how it was made.
+ */
+export async function rejectPendingNitsFor(
+  reviewId: number,
+  login: string,
+  deps: DashboardDeps,
+): Promise<ActionResult> {
+  const loaded = await loadReviewFor(reviewId, login, deps);
+  if (!loaded) {
+    return fail("not_found");
+  }
+  const problem = editableProblem(loaded.detail);
+  if (problem) {
+    return fail(problem);
+  }
+  const nits = pendingNits(loaded.detail.findings);
+  for (const nit of nits) {
+    await decideFinding(deps.db, nit.id, { status: "rejected", rejectionReason: BULK_NIT_REASON }, login);
+  }
+  const pendingBefore = loaded.detail.findings.filter((f) => f.status === "pending").length;
+  return nits.length > 0 && pendingBefore === nits.length ? { ok: true, allDecided: true } : { ok: true };
 }
 
 export const findingEditSchema = z.object({

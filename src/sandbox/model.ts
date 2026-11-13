@@ -45,9 +45,26 @@ export type SandboxAction =
   | { type: "confirm"; id: number }
   | { type: "reject"; id: number; reason: string | null }
   | { type: "edit"; id: number; explanation: string; suggestedFix: string | null }
-  | { type: "undo"; id: number };
+  | { type: "undo"; id: number }
+  | { type: "rejectPendingNits" };
 
-type PerFindingAction = Exclude<SandboxAction, { type: "add" } | { type: "remove" }>;
+type PerFindingAction = Exclude<
+  SandboxAction,
+  { type: "add" } | { type: "remove" } | { type: "rejectPendingNits" }
+>;
+
+/** The reason recorded when nits are rejected all at once. */
+export const BULK_NIT_REASON = "Too minor to send";
+
+/** Pending nits from the first pass: what "Reject all nits" would reject. */
+export function pendingNits(findings: Finding[]): Finding[] {
+  return findings.filter(
+    (finding) => finding.source === "ai" && finding.status === "pending" && finding.severity === "nit",
+  );
+}
+
+// Below this many, rejecting them one by one is as quick as the button.
+export const BULK_NIT_MINIMUM = 2;
 
 /** A finding the visitor wrote. Like in the dashboard, it starts confirmed. */
 function humanFinding(input: NewSandboxFinding, id: number): Finding {
@@ -97,6 +114,14 @@ export function sandboxReducer(findings: Finding[], action: SandboxAction): Find
   if (action.type === "add") {
     const nextId = Math.max(0, ...findings.map((finding) => finding.id)) + 1;
     return [...findings, humanFinding(action.finding, nextId)];
+  }
+  if (action.type === "rejectPendingNits") {
+    const ids = new Set(pendingNits(findings).map((finding) => finding.id));
+    return findings.map((finding) =>
+      ids.has(finding.id)
+        ? applyTo(finding, { type: "reject", id: finding.id, reason: BULK_NIT_REASON })
+        : finding,
+    );
   }
   if (action.type === "remove") {
     // Only findings the visitor added can be removed. AI findings are rejected.

@@ -51,8 +51,10 @@ export function buildSystemPrompt(nonce: string): string {
 
 ## Severity
 - critical: will break production, lose or corrupt data, or expose a secret or a security hole. Must be fixed before merge.
-- warning: likely a real problem, should be fixed.
-- nit: minor. Use sparingly.
+- warning: a real problem that an ordinary user or an ordinary day will run into. Should be fixed.
+- nit: minor, or only matters under unusual conditions. At most two per pull request.
+
+A human reads every finding, so each one that is not worth their time makes them trust the rest less. Before you report a warning, ask: will this go wrong in normal use, with the code as written? If it only goes wrong when something else is also unusual (a very slow network, a huge table, two requests in the same millisecond, a caller passing an empty string), it is hardening advice, not a finding. Leave it out, or report it as a nit if it is cheap to fix. Missing timeouts, missing pagination limits, missing input-length checks, and overlapping scheduled runs are hardening advice unless the diff makes them certain to bite.
 
 ## Rules for findings
 - Report only problems introduced or touched by this diff. Do not review unchanged code.

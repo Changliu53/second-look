@@ -136,3 +136,25 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** The reviewer's page is the product, and it is behind a login plus write access to a repository. Without a public copy nobody outside can see it.
 **Rejected:** A guest login to the real dashboard. It would need its own permission model for one use.
 **Cost:** The page also shows the findings the reviewer rejected, which the author never saw. That is fine for a demo pull request in a public repository and wrong for a private one, so the variable must only point at a public repository.
+
+## 26. A written bar for "warning"
+**What:** The prompt says a warning must go wrong in normal use with the code as written. Hardening advice (missing timeouts, pagination limits, input-length checks, overlapping scheduled runs) is left out or reported as a nit, and nits are capped at two per pull request.
+**Why:** The first eval run found every planted bug and also raised six unplanted warnings in thirteen small pull requests. Each was defensible on its own, and together they were the main reason a reviewer would stop reading. After the rule: same twelve of twelve found, three unplanted warnings in fourteen cases.
+**Rejected:** Dropping findings below a confidence threshold in code. The model's confidence numbers were high on the noise too, so the threshold would have cut real findings first.
+**Risk:** Fourteen cases is a small set and the rule was written after looking at its results, so some of the gain is fitted to these cases. The check is whether reviewers reject fewer findings on real pull requests.
+
+## 27. Built-in examples show saved results
+**What:** The home page examples display results that were produced once by the real engine (`npm run examples:build`) and committed as JSON. Only pasted code calls the model.
+**Why:** The examples open instantly, cost nothing per visitor, and still work when the model API is slow or down. A test checks that every saved finding lands on a line of its example, so the saved file cannot drift from the example code unnoticed.
+**Rejected:** Calling the model on each click (slow, costs money, can fail in front of a visitor), or hand-written fake results (not honest).
+**Cost:** The saved results go stale when the prompt changes. They have to be rebuilt, and the page says which model and date produced them.
+
+## 28. The sandbox reuses the real placement and publishing code
+**What:** The home page sandbox keeps findings in React state, shaped like database rows, and passes them to the same `buildReviewView`, `buildReviewPayload`, and `checkRunFor` functions the dashboard uses.
+**Why:** The preview of what the author gets is then the real output, not an imitation that can drift from it. It works because those functions are pure: no database, no network.
+**Rejected:** A separate, simplified preview written for the demo.
+
+## 29. Keyboard shortcuts read the DOM, not component state
+**What:** `j`, `k`, `n`, `c`, `r`, `e` find findings by `data-finding` and press controls marked `data-action`.
+**Why:** The dashboard uses server-action forms and the sandbox uses client state. One small handler serves both without either knowing about the other, and the dashboard still works with JavaScript off.
+**Rejected:** Converting the dashboard to client state so shortcuts could call handlers directly.

@@ -81,6 +81,32 @@ async function runCase(
   }
 }
 
+/** How many cases are sent to the model at once. */
+const CONCURRENCY = 4;
+
+/**
+ * Runs every case, a few at a time, and returns the outcomes in case order.
+ * Each worker takes the next unclaimed case until none are left.
+ */
+async function runAll(
+  cases: LoadedCase[],
+  model: AnthropicReviewModel,
+): Promise<CaseOutcome[]> {
+  const outcomes = new Array<CaseOutcome>(cases.length);
+  let next = 0;
+
+  async function worker(): Promise<void> {
+    while (next < cases.length) {
+      const index = next;
+      next += 1;
+      outcomes[index] = await runCase(cases[index]!, model);
+    }
+  }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return outcomes;
+}
+
 function printOutcome(outcome: CaseOutcome): void {
   if (outcome.score === null) {
     console.log(`ERROR  ${outcome.name}: ${outcome.error}`);
@@ -111,11 +137,9 @@ async function main(): Promise<void> {
   const cases = await loadCases();
   console.log(`Running ${cases.length} eval cases with ${model.name}\n`);
 
-  const outcomes: CaseOutcome[] = [];
-  for (const loaded of cases) {
-    const outcome = await runCase(loaded, model);
+  const outcomes = await runAll(cases, model);
+  for (const outcome of outcomes) {
     printOutcome(outcome);
-    outcomes.push(outcome);
   }
 
   const scores = outcomes.flatMap((o) => (o.score ? [o.score] : []));

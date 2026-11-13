@@ -1,0 +1,7 @@
+{
+  "title": "Rename Customer.Phone to PrimaryPhone and add lookup by phone",
+  "description": "Renames the phone column with RenameColumn so existing numbers are kept, and adds a lookup by phone number for the current company. Existing rows: values move to the new column name unchanged.",
+  "plantedBug": null,
+  "expected": [],
+  "ignoreCategories": ["missing-tests"]
+}

@@ -66,8 +66,10 @@ public class WorkOrdersController : ControllerBase
     public async Task<IActionResult> Export([FromQuery] string customer, CancellationToken ct)
     {
         // The DbContext's query filter limits this to the current tenant.
+        // An exact match: the file goes to one customer, and "Smith" must
+        // not pull in "Smithson Ltd".
         var rows = await _db.WorkOrders
-            .Where(w => w.CustomerName.Contains(customer))
+            .Where(w => w.CustomerName == customer)
             .OrderBy(w => w.ScheduledFor)
             .Take(5000)
             .ToListAsync(ct);

@@ -25,6 +25,10 @@ on their machine and breaks platform rules. Then:
    pushes the fixes. A new review starts and says which findings are fixed.
 4. Publish again. The check on the pull request turns green.
 
+Both scenarios have been run this way. The results are public:
+[CSV export](https://github.com/Changliu53/fieldops-platform-sample/pull/1) and
+[column rename](https://github.com/Changliu53/fieldops-platform-sample/pull/2).
+
 To try the other publish mode, choose "I will fix it myself" in step 2. The
 dashboard then gives you a checkout command and a prompt for a coding agent.
 

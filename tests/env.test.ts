@@ -1,19 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { getDemoPullRequest, getLimits, getModelName, requireEnv } from "@/lib/env";
+import { getExamplePullRequests, getLimits, getModelName, requireEnv } from "@/lib/env";
 
-describe("getDemoPullRequest", () => {
-  it("parses owner/repo#number", () => {
-    expect(getDemoPullRequest({ DEMO_PULL_REQUEST: " acme/shop.web#12 " })).toEqual({
-      owner: "acme", name: "shop.web", number: 12,
-    });
+describe("getExamplePullRequests", () => {
+  it("parses one or several owner/repo#number entries", () => {
+    expect(getExamplePullRequests({ DEMO_PULL_REQUEST: " acme/shop.web#12 " })).toEqual([
+      { owner: "acme", name: "shop.web", number: 12 },
+    ]);
+    expect(getExamplePullRequests({ DEMO_PULL_REQUEST: "acme/api#1, acme/api#2" })).toEqual([
+      { owner: "acme", name: "api", number: 1 },
+      { owner: "acme", name: "api", number: 2 },
+    ]);
   });
 
-  it.each([undefined, "", "acme/shop", "acme#3", "https://github.com/acme/shop/pull/3", "acme/shop#x"])(
-    "returns null for %s",
-    (value) => {
-      expect(getDemoPullRequest({ DEMO_PULL_REQUEST: value })).toBeNull();
-    },
-  );
+  it("ignores entries that are not owner/repo#number", () => {
+    expect(getExamplePullRequests({ DEMO_PULL_REQUEST: "acme/shop, acme/api#3, https://github.com/a/b/pull/3" })).toEqual([
+      { owner: "acme", name: "api", number: 3 },
+    ]);
+    expect(getExamplePullRequests({})).toEqual([]);
+    expect(getExamplePullRequests({ DEMO_PULL_REQUEST: "" })).toEqual([]);
+  });
 });
 
 describe("limits and model", () => {

@@ -5,6 +5,7 @@ import {
   type FileDiff,
 } from "./diff";
 import { getSkipReason, type SkipReason } from "./filters";
+import { selectWithinBudget } from "./prioritize";
 import {
   buildPrompt,
   createNonce,
@@ -53,7 +54,8 @@ export type ReviewLimits = {
 
 export type SkippedFile = {
   path: string;
-  reason: SkipReason;
+  /** "over_budget": a code file left out because the pull request is large. */
+  reason: SkipReason | "over_budget";
 };
 
 export type ReviewResult = {
@@ -259,7 +261,13 @@ export async function reviewChange(
   }
 
   const diffChars = countDiffChars(reviewable);
-  if (diffChars > limits.maxDiffChars) {
+  // Too much for one review: take the riskiest files that fit, and say which
+  // were left out, rather than reviewing nothing.
+  const { included, omitted } =
+    diffChars > limits.maxDiffChars
+      ? selectWithinBudget(reviewable, limits.maxDiffChars)
+      : { included: reviewable, omitted: [] };
+  if (included.length === 0) {
     return {
       ...tooLargeResult(
         `${diffChars} characters of changes, the limit is ${limits.maxDiffChars}`,
@@ -270,13 +278,14 @@ export async function reviewChange(
 
   const prompt = buildPrompt(
     {
-      renderedDiff: reviewable.map(renderFileDiff).join("\n\n"),
+      renderedDiff: included.map(renderFileDiff).join("\n\n"),
+      omittedPaths: omitted.map((file) => file.path),
       title: input.title,
       description: input.description,
       guidelines: input.guidelines,
       earlier: input.earlier,
       fileContexts: selectFileContexts(
-        reviewable,
+        included,
         input.fileContents ?? [],
         limits.maxContextChars,
       ),
@@ -298,11 +307,33 @@ export async function reviewChange(
 
   return {
     status: "completed",
-    summary: parsed.data.summary,
-    findings: normalizeFindings(parsed.data.findings, reviewable),
+    summary: withOmittedNote(parsed.data.summary, omitted),
+    // Only the files the model saw can carry findings.
+    findings: normalizeFindings(parsed.data.findings, included),
     followUp: normalizeFollowUp(parsed.data.followUp, input.earlier),
-    skippedFiles: skipped,
+    skippedFiles: [
+      ...skipped,
+      ...omitted.map((file) => ({ path: file.path, reason: "over_budget" as const })),
+    ],
     usage,
     model: model.name,
   };
+}
+
+// More than this and the note lists the first few and a count.
+const OMITTED_LISTED = 8;
+
+/**
+ * Puts the files the first pass did not see at the top of the reviewer's
+ * double-check list, so a partial review can never pass for a full one.
+ */
+export function withOmittedNote(summary: ReviewSummary, omitted: FileDiff[]): ReviewSummary {
+  if (omitted.length === 0) {
+    return summary;
+  }
+  const listed = omitted.slice(0, OMITTED_LISTED).map((file) => file.path);
+  const more = omitted.length - listed.length;
+  const files = more > 0 ? `${listed.join(", ")} and ${more} more` : listed.join(", ");
+  const note = `This pull request was too large to review whole. These ${omitted.length} file${omitted.length === 1 ? " was" : "s were"} not reviewed automatically and need a person to read ${omitted.length === 1 ? "it" : "them"}: ${files}.`;
+  return { ...summary, doubleCheck: [note, ...summary.doubleCheck] };
 }

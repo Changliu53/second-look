@@ -79,7 +79,36 @@ describe("reviewChange", () => {
     }
   });
 
-  it("does not call the model when the diff is over the size limit", async () => {
+  it("reviews the riskiest files that fit when the pull request is too large, and says what it left out", async () => {
+    const big = (path: string, lines: number) =>
+      `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1,0 +1,${lines} @@\n` +
+      Array.from({ length: lines }, (_, i) => `+line ${i} of ${path}`).join("\n") +
+      "\n";
+    // Test first in the diff, migration second: the migration still wins.
+    const diff = big("tests/cart.test.ts", 20) + big("db/migrations/0042_drop_phone.sql", 20);
+    const model = new FakeModel({
+      summary: VALID_SUMMARY,
+      findings: [
+        finding({ file: "db/migrations/0042_drop_phone.sql", startLine: 1, endLine: 1 }),
+        // The model was told not to, but a finding on an unseen file is dropped anyway.
+        finding({ file: "tests/cart.test.ts", startLine: 1, endLine: 1 }),
+      ],
+    });
+
+    const result = await reviewChange({ diff }, model, { maxDiffChars: 1_000, maxContextChars: 500 });
+
+    expect(result.status).toBe("completed");
+    const user = model.prompts[0]?.user ?? "";
+    expect(user).toContain("line 0 of db/migrations/0042_drop_phone.sql");
+    expect(user).not.toContain("line 0 of tests/cart.test.ts");
+    expect(user).toMatch(/<omitted_files-[0-9a-f]+>\ntests\/cart\.test\.ts\n<\/omitted_files-/);
+    expect(result.findings.map((f) => f.file)).toEqual(["db/migrations/0042_drop_phone.sql"]);
+    expect(result.summary.doubleCheck[0]).toContain("tests/cart.test.ts");
+    expect(result.summary.doubleCheck[0]).toContain("not reviewed automatically");
+    expect(result.skippedFiles).toContainEqual({ path: "tests/cart.test.ts", reason: "over_budget" });
+  });
+
+  it("does not call the model when not even one file fits", async () => {
     const model = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
     const smallLimit = { maxDiffChars: 50, maxContextChars: 500 };
 

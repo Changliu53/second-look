@@ -42,6 +42,8 @@ export type PromptInput = {
   /** Contents of .second-look.md from the base branch, if any. */
   guidelines?: string;
   earlier?: EarlierReview;
+  /** Changed files left out of the diff because the pull request is large. */
+  omittedPaths?: string[];
 };
 
 export type BuiltPrompt = {
@@ -169,6 +171,15 @@ export function buildUserMessage(input: PromptInput, nonce: string): string {
   }
 
   sections.push("The diff to review:", wrap("diff", nonce, input.renderedDiff));
+
+  if (input.omittedPaths && input.omittedPaths.length > 0) {
+    // File names are chosen by the pull request's author, so they go in a
+    // tagged section like any other untrusted text.
+    sections.push(
+      "This pull request is too large to show whole. The files below also changed but are not shown. Do not report findings on them, and do not assume anything about their contents; the reviewer is told they were not reviewed:",
+      wrap("omitted_files", nonce, input.omittedPaths.join("\n")),
+    );
+  }
 
   if (input.fileContexts.length > 0) {
     sections.push(

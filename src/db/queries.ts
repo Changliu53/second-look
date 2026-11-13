@@ -395,6 +395,8 @@ export type ReviewListItem = {
   review: Review;
   pullRequest: PullRequest;
   repository: Repository;
+  /** The last change any reviewer made to a finding here. Set for open reviews. */
+  lastActivity?: { actor: string; at: Date };
   pendingCount: number;
   confirmedCount: number;
   /** Confirmed plus rejected. */
@@ -647,6 +649,26 @@ type FindingEventInput = {
  */
 async function recordFindingEvent(db: Database, event: FindingEventInput): Promise<void> {
   await db.insert(findingEvents).values({ ...event, detail: event.detail ?? null });
+}
+
+/** Who last changed a finding on each of these reviews, and when. */
+export async function latestActivity(
+  db: Database,
+  reviewIds: number[],
+): Promise<Map<number, { actor: string; at: Date }>> {
+  if (reviewIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .selectDistinctOn([findingEvents.reviewId], {
+      reviewId: findingEvents.reviewId,
+      actor: findingEvents.actor,
+      at: findingEvents.createdAt,
+    })
+    .from(findingEvents)
+    .where(inArray(findingEvents.reviewId, reviewIds))
+    .orderBy(findingEvents.reviewId, desc(findingEvents.createdAt), desc(findingEvents.id));
+  return new Map(rows.map((row) => [row.reviewId, { actor: row.actor, at: row.at }]));
 }
 
 /** A review's finding history, oldest first. */

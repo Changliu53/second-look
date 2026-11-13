@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
 import { listPublishedReviewsFor, listReviewsFor } from "@/dashboard/service";
 import { isStaleRunning, type ReviewListItem } from "@/db/queries";
+import { ago } from "@/lib/time";
 import { signInAction, signOutAction } from "./actions";
 import { dashboardDeps } from "./deps";
 
@@ -63,7 +64,25 @@ function pullLabel(item: ReviewListItem): string {
   return `${item.repository.owner}/${item.repository.name}#${item.pullRequest.number}`;
 }
 
-function OpenRow({ item }: { item: ReviewListItem }) {
+// Within this long, the last person to act is taken to still be on it.
+const ACTIVE_MS = 30 * 60_000;
+
+/** Who is on a review, so two reviewers do not go through the same one. */
+function ActivityNote({ item, login }: { item: ReviewListItem; login: string }) {
+  const last = item.lastActivity;
+  if (!last) {
+    return null;
+  }
+  const who = last.actor === login ? "You" : last.actor;
+  const active = Date.now() - last.at.getTime() < ACTIVE_MS;
+  return (
+    <span className={`block text-xs ${active && last.actor !== login ? "text-amber-700" : "text-ink-soft"}`}>
+      {active ? `${who} ${who === "You" ? "are" : "is"} going through it` : `Last worked on by ${who}`}, {ago(last.at)}
+    </span>
+  );
+}
+
+function OpenRow({ item, login }: { item: ReviewListItem; login: string }) {
   const { review, pullRequest } = item;
   const stale = isStaleRunning(review);
   const total = item.pendingCount + item.decidedCount;
@@ -79,6 +98,7 @@ function OpenRow({ item }: { item: ReviewListItem }) {
           <span className="block font-mono text-xs text-ink-soft">
             {pullLabel(item)} · {pullRequest.authorLogin}
           </span>
+          <ActivityNote item={item} login={login} />
         </span>
         <span className="flex items-center gap-1.5 text-xs text-ink-soft">
           <span aria-hidden className={`size-2 rounded-full ${stale ? "bg-red-600" : STATUS_DOT[review.status]}`} />
@@ -119,7 +139,43 @@ function PublishedRow({ item }: { item: ReviewListItem }) {
   );
 }
 
-export default async function DashboardPage() {
+type PageProps = { searchParams: Promise<{ repo?: string }> };
+
+function repoKey(item: ReviewListItem): string {
+  return `${item.repository.owner}/${item.repository.name}`;
+}
+
+/** Shown when the open reviews span more than one repository. */
+function RepoFilter({ items, current }: { items: ReviewListItem[]; current: string | null }) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    counts.set(repoKey(item), (counts.get(repoKey(item)) ?? 0) + 1);
+  }
+  if (counts.size < 2) {
+    return null;
+  }
+  const chip =
+    "rounded-full border border-edge px-2.5 py-0.5 text-xs transition hover:border-slate-400 aria-[current]:border-accent aria-[current]:bg-accent-soft aria-[current]:text-ink";
+  return (
+    <nav aria-label="Filter by repository" className="mt-4 flex flex-wrap gap-1.5 text-ink-soft">
+      <Link href="/dashboard" aria-current={current === null ? "true" : undefined} className={chip}>
+        All <span className="tabular-nums">{items.length}</span>
+      </Link>
+      {[...counts].sort(([a], [b]) => a.localeCompare(b)).map(([repo, count]) => (
+        <Link
+          key={repo}
+          href={`/dashboard?repo=${encodeURIComponent(repo)}`}
+          aria-current={current === repo ? "true" : undefined}
+          className={`${chip} font-mono`}
+        >
+          {repo} <span className="font-sans tabular-nums">{count}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
   const login = await getSignedInLogin();
   if (!login) {
     return <SignedOut />;
@@ -129,6 +185,11 @@ export default async function DashboardPage() {
     listReviewsFor(login, deps),
     listPublishedReviewsFor(login, deps),
   ]);
+  const requested = (await searchParams).repo ?? null;
+  // Only a repository that is in the list can be a filter; anything else in
+  // the URL shows everything.
+  const repoFilter = requested && open.some((item) => repoKey(item) === requested) ? requested : null;
+  const shown = repoFilter ? open.filter((item) => repoKey(item) === repoFilter) : open;
   const anyRunning = open.some((item) => item.review.status === "running" && !isStaleRunning(item.review));
 
   return (
@@ -166,11 +227,14 @@ export default async function DashboardPage() {
             </p>
           </div>
         ) : (
+          <>
+          <RepoFilter items={open} current={repoFilter} />
           <ul className="mt-4 space-y-2">
-            {open.map((item) => (
-              <OpenRow key={item.review.id} item={item} />
+            {shown.map((item) => (
+              <OpenRow key={item.review.id} item={item} login={login} />
             ))}
           </ul>
+          </>
         )}
 
         {published.length > 0 && (

@@ -10,6 +10,7 @@ import {
   failReview,
   getEarlierDecisions,
   getReviewDetail,
+  latestActivity,
   listFindingEvents,
   listOpenReviews,
   listPublishedReviews,
@@ -426,6 +427,21 @@ describe("finding history", () => {
     // The finding is gone; its history is not.
     expect(history.at(-1)?.findingId).toBe(mine.id);
     expect((await getReviewDetail(db, review.id))!.findings).toHaveLength(1);
+  });
+
+  it("reports the latest change per review", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(2));
+    const [first, second] = (await getReviewDetail(db, review.id))!.findings;
+    await decideFinding(db, first!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, second!.id, { status: "confirmed" }, "kim");
+
+    const activity = await latestActivity(db, [review.id, 9999]);
+
+    expect(activity.get(review.id)?.actor).toBe("kim");
+    expect(activity.has(9999)).toBe(false);
+    expect((await latestActivity(db, [])).size).toBe(0);
   });
 
   it("records nothing when the finding does not exist", async () => {

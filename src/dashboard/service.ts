@@ -10,6 +10,7 @@ import {
   listReviewRounds,
   getReviewDetail,
   isStaleRunning,
+  latestActivity,
   listFindingEvents,
   listOpenReviews,
   listPublishedFindings,
@@ -143,7 +144,13 @@ function diffTarget(detail: ReviewDetail): ReviewDiffTarget {
 }
 
 export async function listReviewsFor(login: string, deps: DashboardDeps): Promise<ReviewListItem[]> {
-  return visibleTo(login, await listOpenReviews(deps.db), deps);
+  const items = await visibleTo(login, await listOpenReviews(deps.db), deps);
+  // So a team can see that someone is already working through a review.
+  const activity = await latestActivity(deps.db, items.map((item) => item.review.id));
+  return items.map((item) => {
+    const last = activity.get(item.review.id);
+    return last ? { ...item, lastActivity: last } : item;
+  });
 }
 
 const RECENT_PUBLISHED_LIMIT = 10;

@@ -12,6 +12,7 @@ import { ActivityLog } from "@/components/review/activity-log";
 import { ReviewProgress } from "@/components/review/review-progress";
 import { ReasonTip } from "@/components/reason-tip";
 import { SiteHeader } from "@/components/site-header";
+import { SubmitButton } from "@/components/submit-button";
 import { BUTTON, BUTTON_APPROVE, BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTION_LABEL } from "@/components/ui";
 import { ACTION_ERRORS, getReviewFor, rerunProblem, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
@@ -96,12 +97,12 @@ function ProgressBar({ detail, locked }: { detail: ReviewDetail; locked: boolean
           {!locked && pendingNits(detail.findings).length >= BULK_NIT_MINIMUM && (
             <form action={rejectPendingNitsAction}>
               <input type="hidden" name="reviewId" value={detail.review.id} />
-              <button
+              <SubmitButton
                 className={BUTTON}
                 title={`Reject every pending nit with the reason "${BULK_NIT_REASON}". Each can be undone.`}
               >
                 Reject {pendingNits(detail.findings).length} nits
-              </button>
+              </SubmitButton>
             </form>
           )}
           {!locked && <FindingKeys pending={counts.pending} />}
@@ -176,7 +177,7 @@ function PublishForm({ detail }: { detail: ReviewDetail }) {
           />
         </label>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button className={BUTTON_APPROVE}>Approve: no changes needed</button>
+          <SubmitButton className={BUTTON_APPROVE}>Approve: no changes needed</SubmitButton>
           <span className="text-xs text-green-950">
             Saw something the first pass missed? Click the + next to a line to add it instead.
           </span>
@@ -251,9 +252,9 @@ function PublishForm({ detail }: { detail: ReviewDetail }) {
       </label>
       <div className="mt-3 flex items-center gap-3">
         <ReasonTip reason={blocked}>
-          <button disabled={blocked !== null} className={BUTTON_PRIMARY}>
+          <SubmitButton disabled={blocked !== null} className={BUTTON_PRIMARY}>
             Publish review
-          </button>
+          </SubmitButton>
         </ReasonTip>
         {blocked && (
           <span className="text-sm text-ink-soft">
@@ -371,7 +372,7 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
               {reason} Running it again reads the pull request from GitHub as it is now and makes
               one model call.
             </span>
-            <button className={BUTTON_PRIMARY_SMALL}>Run the review again</button>
+            <SubmitButton className={BUTTON_PRIMARY_SMALL}>Run the review again</SubmitButton>
           </form>
         )}
         {reason && rerunProblem(detail.review) !== null && (

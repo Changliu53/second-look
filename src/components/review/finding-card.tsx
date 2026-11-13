@@ -5,6 +5,7 @@ import {
   removeFindingAction,
   resetFindingAction,
 } from "@/app/dashboard/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { BUTTON, BUTTON_CONFIRM, INPUT } from "@/components/ui";
 import type { Finding } from "@/db/schema";
 import { publishedText } from "@/github/publish";
@@ -45,7 +46,7 @@ function RejectionReason({ finding }: { finding: Finding }) {
           <option key={reason} value={reason} />
         ))}
       </datalist>
-      <button className={BUTTON}>Save reason</button>
+      <SubmitButton className={BUTTON}>Save reason</SubmitButton>
     </form>
   );
 }
@@ -61,9 +62,9 @@ function QuickReasons({ finding }: { finding: Finding }) {
       <Ids finding={finding} />
       <span className="text-xs text-ink-soft">{REASON_QUESTION}</span>
       {COMMON_REJECT_REASONS.map((reason) => (
-        <button key={reason} name="reason" value={reason} className={REASON_CHIP}>
+        <SubmitButton key={reason} name="reason" value={reason} className={REASON_CHIP}>
           {reason}
-        </button>
+        </SubmitButton>
       ))}
     </form>
   );
@@ -97,18 +98,18 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
             {!isHuman && finding.status !== "confirmed" && (
               <form action={confirmFindingAction}>
                 <Ids finding={finding} />
-                <button data-action="confirm" title="Send this finding to the author" className={BUTTON_CONFIRM}>
+                <SubmitButton data-action="confirm" title="Send this finding to the author" className={BUTTON_CONFIRM}>
                   Confirm
-                </button>
+                </SubmitButton>
               </form>
             )}
 
             {!isHuman && finding.status !== "rejected" && (
               <form action={rejectFindingAction}>
                 <Ids finding={finding} />
-                <button data-action="reject" title="Do not send this finding" className={BUTTON}>
+                <SubmitButton data-action="reject" title="Do not send this finding" className={BUTTON}>
                   Reject
-                </button>
+                </SubmitButton>
               </form>
             )}
 
@@ -124,25 +125,25 @@ export function FindingCard({ finding, locked }: { finding: Finding; locked: boo
                   Suggested fix (optional)
                   <textarea name="suggestedFix" rows={3} defaultValue={text.suggestedFix ?? ""} className={`mt-1 ${INPUT}`} />
                 </label>
-                <button className={`${BUTTON} mt-2`}>{isHuman ? "Save" : "Save and confirm"}</button>
+                <SubmitButton className={`${BUTTON} mt-2`}>{isHuman ? "Save" : "Save and confirm"}</SubmitButton>
               </form>
             </details>
 
             {isHuman && (
               <form action={removeFindingAction}>
                 <Ids finding={finding} />
-                <button data-action="undo" className={`${BUTTON} text-ink-soft`}>
+                <SubmitButton data-action="undo" className={`${BUTTON} text-ink-soft`}>
                   Remove
-                </button>
+                </SubmitButton>
               </form>
             )}
 
             {!isHuman && finding.status !== "pending" && (
               <form action={resetFindingAction}>
                 <Ids finding={finding} />
-                <button data-action="undo" title="Back to pending" className={`${BUTTON} text-ink-soft`}>
+                <SubmitButton data-action="undo" title="Back to pending" className={`${BUTTON} text-ink-soft`}>
                   Undo
-                </button>
+                </SubmitButton>
               </form>
             )}
           </div>

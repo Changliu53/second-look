@@ -3,6 +3,7 @@ import { getSignedInLogin } from "@/auth";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { stageLabel } from "@/components/review/stage-labels";
 import { SiteHeader } from "@/components/site-header";
+import { SubmitButton } from "@/components/submit-button";
 import { BUTTON_PRIMARY, LINK, SECTION_LABEL } from "@/components/ui";
 import { listPublishedReviewsFor, listReviewsFor } from "@/dashboard/service";
 import { isStaleRunning, type ReviewListItem } from "@/db/queries";
@@ -43,7 +44,7 @@ function SignedOut() {
           see repositories where the Second Look app is installed and you have write access.
         </p>
         <form action={signInAction} className="mt-6">
-          <button className={BUTTON_PRIMARY}>Sign in with GitHub</button>
+          <SubmitButton className={BUTTON_PRIMARY}>Sign in with GitHub</SubmitButton>
         </form>
         <p className="mt-6 text-sm text-ink-soft">
           Just looking? Open the{" "}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { addFindingAction } from "@/app/dashboard/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { SummaryCard } from "@/components/summary-card";
 import { BUTTON_PRIMARY, KBD, LINK, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView, fileStats, shouldFoldQuietFiles } from "@/dashboard/diff-view";
@@ -29,7 +30,7 @@ function Composer({ reviewId, target }: { reviewId: number; target: ComposeTarge
       <p className="mb-2 text-sm font-semibold">Your finding on line {target.line}</p>
       <FindingFields startLine={target.line} />
       <div className="mt-3 flex items-center gap-3">
-        <button className={BUTTON_PRIMARY}>Add finding</button>
+        <SubmitButton className={BUTTON_PRIMARY}>Add finding</SubmitButton>
         <Link data-cancel href={`/dashboard/reviews/${reviewId}`} className={`${LINK} text-sm`}>
           Cancel
         </Link>

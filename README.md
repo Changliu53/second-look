@@ -47,7 +47,17 @@ flowchart LR
 6. **A fix is pushed and the pull request is reviewed again.** The new review knows what the reviewer decided last time. Findings they rejected are not raised again, and each finding that was sent gets a verdict: fixed, still there, or cannot tell.
 
    ![Since the last review: 4 of 7 sent findings fixed, with a note on each](docs/follow-up.jpg)
-7. **The decisions are added up.** The dashboard's insights page shows the share of first-pass findings that reviewers confirmed, by severity and category, the reasons for rejections, and what reviewers had to add themselves. It reads stored decisions and calls no model.
+7. **The decisions are added up.** The dashboard's insights page shows the share of first-pass findings that reviewers confirmed, by severity and category, the reasons for rejections, what reviewers had to add themselves, and how long authors wait for a reviewer. Where reviewers keep rejecting a kind of finding, it suggests a line for `.second-look.md` so the first pass stops raising it. It reads stored decisions and calls no model.
+
+## For a team
+
+- **Several reviewers.** The dashboard says who is going through each review ("kim is going through it, 4 min ago"), so two people do not take the same one, and filters by repository.
+- **An audit trail.** Every confirm, reject, undo, rewrite, added and removed finding is recorded with who and when, and listed under the review as its activity.
+- **Nothing to fix.** Rejecting every finding turns publishing into "Approve: no changes needed". The author gets a one-line review and the check passes.
+- **Large pull requests.** Over the size limit, the first pass reviews the riskiest files that fit (migrations, access checks, endpoints first; tests and docs last) and names the files it did not read.
+- **When a review fails.** "Run the review again" on its page, instead of closing and reopening the pull request.
+- **Operations.** `GET /api/health` for an uptime monitor. See [docs/SETUP.md](docs/SETUP.md#running-it-for-a-team).
+- Keyboard shortcuts throughout (press `?`), a dark theme, and layouts that work on a phone.
 
 ## What it looks for
 
@@ -67,8 +77,8 @@ A repository can add its own rules in `.second-look.md` (see [the one in this re
 - Code under review is treated as data. It is wrapped in tags with a random per-request name, so a comment like "ignore previous instructions" cannot pose as an instruction. See `src/review/prompt.ts`.
 - Model output is validated with Zod. Free text is never parsed.
 - Every webhook signature is verified.
-- Dashboard users must have write access to the repository, checked with GitHub on each request.
-- Lockfiles, generated files, and binaries are skipped. Diffs over a size limit get a "too large, split it" summary and no model call.
+- Dashboard users must have write access to the repository, as GitHub reports it. The answer is kept for a minute.
+- Lockfiles, generated files, and binaries are skipped. Over the size limit, only the riskiest files that fit are sent, and the rest are named as not reviewed.
 - Token usage is logged per review. Diffs and file contents are not stored or logged.
 - Reviews of pasted code have an input size cap, a per-IP hourly limit, and a daily limit. The built-in examples use saved results and call no API.
 - Text written by the model is neutralized before it is posted to GitHub, so a pull request cannot make the reviewer mention users or embed remote images.

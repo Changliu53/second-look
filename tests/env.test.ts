@@ -18,7 +18,7 @@ describe("getDemoPullRequest", () => {
 
 describe("limits and model", () => {
   it("uses defaults when nothing is set and reads overrides as numbers", () => {
-    expect(getLimits({}).maxDiffChars).toBe(60_000);
+    expect(getLimits({}).maxDiffChars).toBe(120_000);
     expect(getLimits({ MAX_DIFF_CHARS: "500" }).maxDiffChars).toBe(500);
   });
 

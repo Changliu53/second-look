@@ -16,6 +16,7 @@ import { BUTTON_APPROVE, BUTTON_PRIMARY, BUTTON_PRIMARY_SMALL, INPUT, KBD, SECTI
 import { ACTION_ERRORS, getReviewFor, rerunProblem, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { fixPromptFor } from "@/github/publish";
+import { BUDGET_REACHED } from "@/github/review-pull-request";
 import { countByStatus, publishBlockedReason } from "@/sandbox/model";
 import { publishReviewAction, rerunReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
@@ -43,6 +44,9 @@ function lockedReason(detail: ReviewDetail): string | null {
   }
   if (isStaleRunning(review)) {
     return "The AI review did not finish. It may have timed out.";
+  }
+  if (review.status === "failed" && review.errorMessage === BUDGET_REACHED) {
+    return "Not reviewed automatically: this month's model budget is used up. Review the diff by hand, or raise MONTHLY_TOKEN_BUDGET.";
   }
   if (review.status === "failed") {
     return "The AI review failed.";

@@ -26,6 +26,10 @@ import type { FollowUp } from "@/review/schema";
 import { publishedText } from "./publish";
 import { canReviewRepository } from "./access";
 import { checkRunFor, type CheckState } from "./check-run";
+import { isOverBudget } from "@/lib/budget";
+
+/** Stored as the review's error when the monthly budget stopped it. */
+export const BUDGET_REACHED = "budget_reached";
 import { DiffTooLargeError, type GitHubClient, type RepoRef } from "./client";
 import type { PullRequestEvent } from "./webhook-payload";
 
@@ -40,6 +44,8 @@ export type ReviewDeps = {
   model: ReviewModel;
   limits: ReviewLimits;
   appUrl: string;
+  /** Model tokens all reviews may use per calendar month. Null or absent: no limit. */
+  monthlyTokenBudget?: number | null;
 };
 
 /**
@@ -266,6 +272,13 @@ export async function reviewPullRequest(
   hooks.onClaimed?.(review.id);
 
   const checkRunId = await createCheck(deps, repo, headSha, review.id);
+
+  if (await isOverBudget(deps.db, deps.monthlyTokenBudget ?? null)) {
+    await failReview(deps.db, review.id, BUDGET_REACHED);
+    await updateCheck(deps.github, repo, checkRunId, { kind: "budget_reached" });
+    logEvent("review_skipped_budget", { reviewId: review.id });
+    return;
+  }
 
   try {
     // If a reviewer already went through this pull request at an earlier

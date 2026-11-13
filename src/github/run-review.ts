@@ -31,6 +31,7 @@ export function startReview(
       model: new AnthropicReviewModel(getModelName()),
       limits: getLimits(),
       appUrl: getAppUrl(),
+      monthlyTokenBudget: getLimits().monthlyTokenBudget,
     },
     { onClaimed: claim },
   ).catch((error: unknown) => {

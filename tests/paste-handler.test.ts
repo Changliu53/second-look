@@ -29,6 +29,19 @@ beforeEach(async () => {
 });
 
 describe("handlePasteRequest", () => {
+  it("refuses, and calls no model, once the monthly budget is used up", async () => {
+    await db.insert(reviews).values({ source: "github", status: "completed", inputTokens: 5_000, outputTokens: 0, createdAt: NOW });
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
+
+    const response = await handlePasteRequest(
+      { code: "let a = 1;" },
+      deps({ model, limits: { ...deps().limits, monthlyTokenBudget: 1_000 } }),
+    );
+
+    expect(response.httpStatus).toBe(429);
+    expect(model.prompts).toHaveLength(0);
+  });
+
   it("reviews pasted code and reports line numbers of the pasted text", async () => {
     const model = new FakeModel({
       summary: VALID_SUMMARY,

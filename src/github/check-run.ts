@@ -19,7 +19,8 @@ export type CheckState =
       takenOverBy?: string;
     }
   | { kind: "superseded" }
-  | { kind: "failed" };
+  | { kind: "failed" }
+  | { kind: "budget_reached" };
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -80,6 +81,18 @@ export function checkRunFor(state: CheckState): CheckRunUpdate {
         conclusion: "neutral",
         title: "Superseded by a newer commit",
         summary: "A newer commit was pushed while this review was running. See the check on the latest commit.",
+      };
+
+    case "budget_reached":
+      // Neutral, not failed: the code was not found wanting, it was not read.
+      // A team that requires this check must not be locked out of merging
+      // until the month turns over.
+      return {
+        status: "completed",
+        conclusion: "neutral",
+        title: "Not reviewed: monthly budget used up",
+        summary:
+          "This month's budget for automatic reviews is used up, so this pull request was not reviewed automatically. A person needs to review it.",
       };
 
     case "failed":

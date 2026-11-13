@@ -19,6 +19,11 @@ const limitsSchema = z.object({
   PASTE_MAX_CHARS: positiveInt(20_000),
   PASTE_REQUESTS_PER_HOUR: positiveInt(20),
   PASTE_DAILY_GLOBAL_LIMIT: positiveInt(100),
+  // Optional. Unset or empty means no budget.
+  MONTHLY_TOKEN_BUDGET: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().optional(),
+  ),
 });
 
 export type Limits = {
@@ -27,6 +32,11 @@ export type Limits = {
   pasteMaxChars: number;
   pasteRequestsPerHour: number;
   pasteDailyGlobalLimit: number;
+  /**
+   * Model tokens (input plus output) all reviews may use in a calendar month,
+   * UTC. Null for no limit.
+   */
+  monthlyTokenBudget: number | null;
 };
 
 export function getLimits(env: EnvSource = process.env): Limits {
@@ -37,6 +47,7 @@ export function getLimits(env: EnvSource = process.env): Limits {
     pasteMaxChars: parsed.PASTE_MAX_CHARS,
     pasteRequestsPerHour: parsed.PASTE_REQUESTS_PER_HOUR,
     pasteDailyGlobalLimit: parsed.PASTE_DAILY_GLOBAL_LIMIT,
+    monthlyTokenBudget: parsed.MONTHLY_TOKEN_BUDGET ?? null,
   };
 }
 

@@ -79,7 +79,7 @@ A repository can add its own rules in `.second-look.md` (see [the one in this re
 - Every webhook signature is verified.
 - Dashboard users must have write access to the repository, as GitHub reports it. The answer is kept for a minute.
 - Lockfiles, generated files, and binaries are skipped. Over the size limit, only the riskiest files that fit are sent, and the rest are named as not reviewed.
-- Token usage is logged per review. Diffs and file contents are not stored or logged.
+- Token usage is logged per review. Diffs and file contents are not stored or logged. An optional monthly token budget stops model calls once it is used up.
 - Reviews of pasted code have an input size cap, a per-IP hourly limit, and a daily limit. The built-in examples use saved results and call no API.
 - Text written by the model is neutralized before it is posted to GitHub, so a pull request cannot make the reviewer mention users or embed remote images.
 - Pull requests from authors without write access are not reviewed, and drafts wait until they are marked ready.

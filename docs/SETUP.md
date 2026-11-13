@@ -84,7 +84,7 @@ If nothing happens, open the App's **Advanced** tab on GitHub. It lists recent w
 - **A review that failed.** Open it in the dashboard and click **Run the review again**. It costs one model call. A review that finished cannot be run again from there.
 - **Migrations.** Run `npm run db:migrate` before deploying code that needs a new migration. Migrations are additive where possible; each one's commit says so.
 - **Access.** A reviewer sees a repository's reviews when they have write access to it on GitHub. Answers are remembered for one minute, so removing someone takes up to a minute to apply.
-- **Cost.** Every push to a pull request by someone with write access is one model call. `npm run usage` prints the tokens used by stored reviews and a rough cost.
+- **Cost.** Every push to a pull request by someone with write access is one model call. `npm run usage` prints the tokens used by stored reviews and a rough cost. Set `MONTHLY_TOKEN_BUDGET` to cap the tokens all reviews may use in a calendar month (UTC). Once it is used up, pull requests get a neutral check saying they were not reviewed automatically, so they are not blocked from merging, and live paste reviews pause. After raising the budget, use **Run the review again** on a skipped review.
 
 ## Local development
 

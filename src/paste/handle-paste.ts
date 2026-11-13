@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import { countPasteReviewsSince, recordPasteReview } from "@/db/queries";
 import type { Limits } from "@/lib/env";
+import { isOverBudget } from "@/lib/budget";
 import { consumeHourlyLimit } from "@/lib/rate-limit";
 import { ReviewError, reviewChange, type ReviewModel } from "@/review/engine";
 import { toReviewableDiff } from "@/review/paste";
@@ -69,6 +70,13 @@ export async function handlePasteRequest(
       httpStatus: 429,
       body: { error: "Hourly limit reached. Try again later." },
       retryAfterSeconds: Math.ceil((hourly.resetAt.getTime() - now.getTime()) / 1000),
+    };
+  }
+
+  if (await isOverBudget(deps.db, deps.limits.monthlyTokenBudget, now)) {
+    return {
+      httpStatus: 429,
+      body: { error: "Live reviews are paused for this month. The examples still work." },
     };
   }
 

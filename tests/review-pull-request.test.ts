@@ -9,6 +9,7 @@ import {
 import { reviewPullRequest, type ReviewDeps } from "@/github/review-pull-request";
 import type { PullRequestEvent } from "@/github/webhook-payload";
 import { DiffTooLargeError } from "@/github/client";
+import { reviews } from "@/db/schema";
 import { ReviewError, type ReviewModel } from "@/review/engine";
 import { FakeGitHub } from "./helpers/fake-github";
 import { FakeModel, VALID_SUMMARY } from "./helpers/fake-model";
@@ -131,6 +132,18 @@ describe("reviewPullRequest", () => {
     expect(claimed).toEqual([(await onlyReview()).review.id]);
     // Claimed before the slow part, so a reviewer is not kept waiting on it.
     expect(promptsAtClaim).toEqual([0]);
+  });
+
+  it("calls no model once the monthly budget is used up, and says so on the check", async () => {
+    await db.insert(reviews).values({ source: "paste", status: "completed", inputTokens: 900, outputTokens: 200 });
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [FINDING] });
+
+    await reviewPullRequest(event(), { ...deps(model), monthlyTokenBudget: 1_000 });
+
+    expect(model.prompts).toHaveLength(0);
+    const detail = await onlyReview();
+    expect(detail.review).toMatchObject({ status: "failed", errorMessage: "budget_reached" });
+    expect(github.lastCheckUpdate()).toMatchObject({ conclusion: "neutral", title: "Not reviewed: monthly budget used up" });
   });
 
   it("does nothing the second time the same commit is delivered", async () => {

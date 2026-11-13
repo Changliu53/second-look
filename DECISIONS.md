@@ -309,3 +309,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Never suggested:** turning off security, access-control, or data-loss findings. A team that rejects most of those has a different problem, and a rule to stop looking would hide it.
 **Rejected:** Changing the prompt automatically from rejections. A person reads and commits the rule, on the main branch, where the rest of the team can see and argue with it.
 
+## 58. An optional monthly token budget
+**What:** `MONTHLY_TOKEN_BUDGET` caps the model tokens all reviews may use in a calendar month (UTC). It is checked before each model call. Once it is used up, a pull request's review is stored as failed with the reason, its check completes as neutral with "Not reviewed: monthly budget used up", and live paste reviews return 429. Unset means no limit.
+**Why:** Every push is a paid call, and the person paying for a team's reviews needs a number they cannot exceed by surprise, for instance when a busy week or a loop of pushes arrives.
+**Neutral, not failure or action required:** the code was not found wanting, it was not read. A team that requires the check must not be unable to merge anything until the month turns over. The dashboard says plainly that the review was skipped, so a person knows to read it.
+**Limit:** The check happens before a call, so the last review of a month can go over by one review's tokens. Stopping a review half-way would cost the tokens and give nothing.
+

@@ -454,6 +454,17 @@ export async function latestReviewId(db: Database, pullRequestId: number): Promi
   return rows[0]?.id ?? null;
 }
 
+/** Model tokens, input plus output, used by every review created since `since`. */
+export async function tokensUsedSince(db: Database, since: Date): Promise<number> {
+  const rows = await db
+    .select({
+      total: sql<number>`coalesce(sum(coalesce(${reviews.inputTokens}, 0) + coalesce(${reviews.outputTokens}, 0)), 0)::int`,
+    })
+    .from(reviews)
+    .where(gte(reviews.createdAt, since));
+  return Number(rows[0]?.total ?? 0);
+}
+
 /** Reviews a human still has to act on: open PR, not published, not superseded. */
 export async function listOpenReviews(db: Database): Promise<ReviewListItem[]> {
   const rows = await db

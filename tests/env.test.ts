@@ -34,6 +34,13 @@ describe("limits and model", () => {
     expect(getLimits({ MAX_DIFF_CHARS: "500" }).maxDiffChars).toBe(500);
   });
 
+  it("has no monthly token budget unless one is set", () => {
+    expect(getLimits({}).monthlyTokenBudget).toBeNull();
+    expect(getLimits({ MONTHLY_TOKEN_BUDGET: "" }).monthlyTokenBudget).toBeNull();
+    expect(getLimits({ MONTHLY_TOKEN_BUDGET: "2000000" }).monthlyTokenBudget).toBe(2_000_000);
+    expect(() => getLimits({ MONTHLY_TOKEN_BUDGET: "lots" })).toThrow();
+  });
+
   it("rejects a limit that is not a positive whole number", () => {
     expect(() => getLimits({ MAX_DIFF_CHARS: "-1" })).toThrow();
     expect(() => getLimits({ MAX_DIFF_CHARS: "lots" })).toThrow();

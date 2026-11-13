@@ -215,8 +215,12 @@ function Handoff({ detail }: { detail: ReviewDetail }) {
       {prompt && (
         <div className="mt-3">
           <FixPromptBlock
-            title={takenOver ? "Prompt for your coding agent" : "The prompt they received"}
-            hint={takenOver ? "Paste into your agent in the checked-out branch." : ""}
+            title={takenOver ? "Prompt for your coding agent" : "Fix prompt"}
+            hint={
+              takenOver
+                ? "Paste into your agent in the checked-out branch."
+                : "Rebuilt from the confirmed findings. The copy on GitHub is what was sent."
+            }
             prompt={prompt}
             open={takenOver}
           />

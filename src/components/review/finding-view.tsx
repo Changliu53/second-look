@@ -58,9 +58,14 @@ export function FindingHeader({ finding }: { finding: Finding }) {
     <div className="flex flex-wrap items-center gap-2">
       <SeverityBadge severity={finding.severity} />
       <CategoryBadge category={finding.category} />
-      <span className="font-mono text-xs text-ink-soft" title={finding.filePath}>
+      {/* A link to this finding, to send to someone. */}
+      <a
+        href={`#finding-${finding.id}`}
+        className="font-mono text-xs text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+        title={`${finding.filePath}. Link to this finding.`}
+      >
         {lineLabel(finding)}
-      </span>
+      </a>
       {finding.source === "human" ? (
         <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-white">
           Added by reviewer

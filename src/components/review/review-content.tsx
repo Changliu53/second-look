@@ -139,6 +139,11 @@ export function ReviewContent({
           file={file}
           skippedAs={getSkipReason(file.path, false) ?? undefined}
           foldedNote={quietNote(file)}
+          githubHref={
+            review.headSha
+              ? `https://github.com/${repository.owner}/${repository.name}/blob/${review.headSha}/${file.path.split("/").map(encodeURIComponent).join("/")}`
+              : undefined
+          }
           renderFinding={(finding) => <FindingCard finding={finding} locked={locked} />}
           slots={
             locked

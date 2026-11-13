@@ -103,6 +103,7 @@ export function DiffFile({
   title,
   skippedAs,
   foldedNote,
+  githubHref,
   slots = {},
 }: {
   file: FileView;
@@ -116,6 +117,8 @@ export function DiffFile({
    * Used for files without findings in a long diff.
    */
   foldedNote?: string;
+  /** The file at the reviewed commit on GitHub, for reading it whole. */
+  githubHref?: string;
   slots?: LineSlots;
 }) {
   const foldNote = skippedAs ? `${skippedAs} file, not reviewed. Click to show.` : foldedNote;
@@ -139,6 +142,16 @@ export function DiffFile({
       <h3 className="flex items-center gap-2 border-b border-edge bg-slate-50 px-3 py-2 font-mono text-xs font-medium">
         <span className="break-all">{title ?? file.path}</span>
         {!plain && <span className="font-sans font-normal text-ink-soft">{file.status}</span>}
+        {githubHref && file.status !== "deleted" && (
+          <a
+            href={githubHref}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto shrink-0 font-sans font-normal text-accent underline-offset-2 hover:underline"
+          >
+            Whole file on GitHub
+          </a>
+        )}
       </h3>
       <div className={`font-mono text-xs leading-5 ${plain ? "py-1" : ""}`}>
         {file.rows.map((row, index) => (

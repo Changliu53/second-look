@@ -52,7 +52,9 @@ export function Toast({
   return (
     <div
       role="status"
-      className="animate-rise-in fixed inset-x-0 bottom-20 z-50 mx-auto flex w-fit max-w-[min(36rem,92vw)] items-start gap-3 rounded-lg border border-green-300 bg-green-50 py-3 pl-3 pr-2 text-sm text-green-950 shadow-lg"
+      // Centred on a phone; in the bottom right corner on a wider screen, where
+      // it does not cover the button it is pointing the reader to.
+      className="animate-rise-in fixed inset-x-0 bottom-20 z-50 mx-auto flex w-fit max-w-[min(36rem,92vw)] items-start gap-3 sm:inset-x-auto sm:right-6 sm:mx-0 sm:max-w-sm rounded-lg border border-green-300 bg-green-50 py-3 pl-3 pr-2 text-sm text-green-950 shadow-lg"
     >
       <CheckIcon />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">

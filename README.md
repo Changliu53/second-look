@@ -12,7 +12,7 @@ Everything below works without an account.
 - **Real pull requests after review, read-only:** https://second-look-review.vercel.app/example. Two pull requests on a sample C# service, each through two rounds. On GitHub: [CSV export](https://github.com/Changliu53/fieldops-platform-sample/pull/1), sent back to the author with a fix prompt, and [column rename](https://github.com/Changliu53/fieldops-platform-sample/pull/2), taken over by the reviewer.
 - **The tool reviewing its own code:** pull requests [#3](https://github.com/Changliu53/second-look/pull/3) to [#7](https://github.com/Changliu53/second-look/pull/7) in this repository. It found a flaw in its own eval, a setup script that failed on the documented path, and a crash that the build and the tests had both missed.
 
-To run the whole flow yourself with real pull requests, see [scripts/walkthrough](scripts/walkthrough/README.md). It targets [fieldops-platform-sample](https://github.com/Changliu53/fieldops-platform-sample), a small multi-tenant ASP.NET Core service.
+To run the whole flow with real pull requests, use [fieldops-platform-sample](https://github.com/Changliu53/fieldops-platform-sample#try-it-yourself), a small multi-tenant ASP.NET Core service. It has a script that opens a prepared pull request and one that pushes its fix. Anyone added to that repository as a collaborator can do this: they install nothing and none of their own repositories are involved. See [scripts/walkthrough](scripts/walkthrough/README.md).
 
 ## How it works
 

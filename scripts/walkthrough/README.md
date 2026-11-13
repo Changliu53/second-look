@@ -1,49 +1,31 @@
-# Walkthrough kit
+# Walkthrough
 
-Two scripts that run the whole Second Look flow against a sample repository,
-with real pull requests, so you can see every step without writing a buggy
-change by hand.
+The walkthrough kit runs the whole Second Look flow with real pull requests:
+open one, review it, publish, push a fix, review again.
 
-The target is [fieldops-platform-sample](https://github.com/Changliu53/fieldops-platform-sample),
-a small ASP.NET Core and EF Core service with tenancy rules. Clone it next to
-this repository, install the Second Look GitHub App on it, and sign in to the
-`gh` CLI.
+It lives in the sample repository,
+[fieldops-platform-sample/walkthrough](https://github.com/Changliu53/fieldops-platform-sample/tree/main/walkthrough),
+so that anyone with write access to that repository can run it from a clone,
+without this repository. Its README lists the steps and the scenarios.
+
+The two scripts here forward to it, for when both repositories are cloned
+side by side:
 
 ```
 scripts/walkthrough/open-pr.sh work-order-export
+scripts/walkthrough/push-fix.sh work-order-export
 ```
 
-opens a pull request the way a non-engineer using an AI tool might: it works
-on their machine and breaks platform rules. Then:
+Set `SAMPLE_REPO_DIR` if the sample repository is somewhere else.
 
-1. Watch it appear in the dashboard and the first pass run.
-2. Confirm or reject the findings and publish, sending it back to the author.
-3. Play the author:
-   ```
-   scripts/walkthrough/push-fix.sh work-order-export
-   ```
-   pushes the fixes. A new review starts and says which findings are fixed.
-4. Publish again. The check on the pull request turns green.
+## Letting someone else try it
 
-Both scenarios have been run this way. The results are public:
-[CSV export](https://github.com/Changliu53/fieldops-platform-sample/pull/1) and
-[column rename](https://github.com/Changliu53/fieldops-platform-sample/pull/2).
+Add them to the sample repository as a collaborator with write access. That
+is all: they install nothing, and the app is installed on none of their
+repositories. A review runs for a pull request only when its author has write
+access, and the dashboard shows a repository only to people with write access
+to it. The sample repository's README has the steps and
+[what access this involves](https://github.com/Changliu53/fieldops-platform-sample#what-access-this-involves).
 
-To try the other publish mode, choose "I will fix it myself" in step 2. The
-dashboard then gives you a checkout command and a prompt for a coding agent.
-
-## Scenarios
-
-| Name | What the change does | What is wrong with it |
-|---|---|---|
-| `work-order-export` | Adds a CSV export of work orders | Turns off the tenant filter, has no authorization policy, writes a file to a fixed path on the server, builds CSV by hand |
-| `rename-customer-phone` | Renames a column | Written as drop then add, so existing phone numbers are deleted. No designer file, and the model snapshot is not updated |
-
-Each scenario folder has `change/` (the first commit), `fix/` (the author's
-second commit), `title.txt`, and `body.md`. The C# in these folders was written
-by hand and has not been compiled; the designer and snapshot files follow the
-shape EF Core generates. Files are copied over the sample
-repository as they are, so adding a scenario is adding a folder.
-
-Set `SAMPLE_REPO_DIR` if the sample repository is somewhere else. Set
-`DRY_RUN=1` to commit locally without pushing or opening a pull request.
+Each review they start is a model call on your API key. A pull request on the
+sample repository has cost a few cents.

@@ -233,3 +233,10 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Why:** Without it the walk-through stopped at a preview, and it was not clear that publishing is a separate, deliberate act by the reviewer. That act is the point of the product.
 **Risk:** A visitor could think something was sent. The button's caption, the confirmation, and the result all say "simulated" and that nothing left the browser.
 
+## 44. Someone else tries the product by being added to the sample repository
+**What:** To let another person run a real review, they are added as a collaborator with write access to the sample repository. Nothing else is set up. The walkthrough scripts moved into that repository so they can be run from a clone of it; the two scripts here forward to them.
+**Why:** The two checks that already exist do the work. A review runs only when the pull request's author has write access, because each review is a paid model call, and the dashboard shows a repository only to people with write access to it. The app is private and installed on two repositories of one account, so a guest installs nothing and none of their own repositories can be reached.
+**Rejected:** Making the app public so a guest installs it on a repository of their own. That asks them to grant access to their code in order to look at a tool, and every review they start would still be paid for here.
+**Rejected:** A shared demo login. It would make every decision in the audit trail belong to nobody.
+**Limit:** A collaborator can push to the sample repository's main branch and can start reviews, each of which is a model call. Removing them from the repository ends both.
+

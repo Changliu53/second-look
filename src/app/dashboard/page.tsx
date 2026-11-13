@@ -98,6 +98,9 @@ function OpenRow({ item }: { item: ReviewListItem }) {
   );
 }
 
+// Where a signed-in reviewer with nothing to do can start a real review.
+const SAMPLE_REPO_URL = "https://github.com/Changliu53/fieldops-platform-sample";
+
 function PublishedRow({ item }: { item: ReviewListItem }) {
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 py-2 text-sm">
@@ -142,10 +145,20 @@ export default async function DashboardPage() {
       <main className="mx-auto max-w-4xl px-5 py-8">
         <h1 className="text-2xl font-semibold tracking-tight">Waiting for your decision</h1>
         {open.length === 0 ? (
-          <p className="mt-4 rounded-lg border border-dashed border-edge p-6 text-sm text-ink-soft">
-            Nothing to review. A pull request opened on a repository where Second Look is
-            installed appears here within seconds. This list updates by itself.
-          </p>
+          <div className="mt-4 rounded-lg border border-dashed border-edge p-6 text-sm leading-relaxed text-ink-soft">
+            <p>
+              Nothing is waiting for you. A pull request appears here within seconds of being
+              opened, if Second Look is installed on its repository and {login} has write access
+              to it. This list updates by itself.
+            </p>
+            <p className="mt-2">
+              To see one now, open a pull request on the{" "}
+              <a className={LINK} href={`${SAMPLE_REPO_URL}#try-it-yourself`}>
+                sample repository
+              </a>
+              . It has a script that opens a prepared one.
+            </p>
+          </div>
         ) : (
           <ul className="mt-4 space-y-2">
             {open.map((item) => (

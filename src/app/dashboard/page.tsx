@@ -100,7 +100,15 @@ function OpenRow({ item, login }: { item: ReviewListItem; login: string }) {
         className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-edge bg-surface-raised px-4 py-3 transition hover:border-accent hover:bg-accent-soft"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{pullRequest.title}</span>
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium">{pullRequest.title}</span>
+            {item.criticalCount > 0 && (
+              // The reviews most worth opening first, said in words and colour.
+              <span className="shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-red-800 ring-1 ring-inset ring-red-200">
+                {item.criticalCount} critical
+              </span>
+            )}
+          </span>
           <span className="block font-mono text-xs text-ink-soft">
             {pullLabel(item)} · {pullRequest.authorLogin}
           </span>

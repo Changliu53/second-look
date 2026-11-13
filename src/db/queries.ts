@@ -429,6 +429,8 @@ export type ReviewListItem = {
   confirmedCount: number;
   /** Confirmed plus rejected. */
   decidedCount: number;
+  /** Critical findings not rejected: what makes a review urgent. */
+  criticalCount: number;
 };
 
 type ReviewRow = Pick<ReviewListItem, "review" | "pullRequest" | "repository">;
@@ -446,6 +448,7 @@ async function withFindingCounts(
       reviewId: findings.reviewId,
       status: findings.status,
       count: sql<number>`count(*)::int`,
+      critical: sql<number>`count(*) filter (where ${findings.severity} = 'critical')::int`,
     })
     .from(findings)
     .where(
@@ -456,17 +459,19 @@ async function withFindingCounts(
     )
     .groupBy(findings.reviewId, findings.status);
 
-  const countFor = (reviewId: number, status: Finding["status"]) =>
-    counts.find((c) => c.reviewId === reviewId && c.status === status)?.count ??
-    0;
+  const rowFor = (reviewId: number, status: Finding["status"]) =>
+    counts.find((c) => c.reviewId === reviewId && c.status === status);
 
   return rows.map((row) => {
-    const confirmedCount = countFor(row.review.id, "confirmed");
+    const id = row.review.id;
+    const confirmedCount = rowFor(id, "confirmed")?.count ?? 0;
     return {
       ...row,
-      pendingCount: countFor(row.review.id, "pending"),
+      pendingCount: rowFor(id, "pending")?.count ?? 0,
       confirmedCount,
-      decidedCount: confirmedCount + countFor(row.review.id, "rejected"),
+      decidedCount: confirmedCount + (rowFor(id, "rejected")?.count ?? 0),
+      // A critical finding counts until a reviewer rejects it.
+      criticalCount: (rowFor(id, "pending")?.critical ?? 0) + (rowFor(id, "confirmed")?.critical ?? 0),
     };
   });
 }

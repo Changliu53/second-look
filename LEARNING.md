@@ -153,3 +153,51 @@ Five questions per part of the system, with short answers. "Read line by line" m
 
 5. **The page shows a review of an old commit. Which diff does it show?**
    Not the pull request's current diff, which has moved on. It asks GitHub to compare the base branch with that commit, which is what the pull request looked like then. That needed the base branch stored on the pull request.
+
+## Review experience: steps, folding, approval, and adding findings
+
+**Read line by line:** `src/components/review/finding-view.tsx` (`FindingShell`, `decisionKey`), `src/components/reason-tip.tsx`, `src/app/playground/steps-bar.tsx`, `src/github/publish.ts` (`buildReviewParts`), `src/app/globals.css` (the dark theme block)
+
+1. **A decided finding folds to one line. A reviewer opens it, changes the decision, and it stays open. Why, and what fixed it?**
+   The card is a `<details>` element and React kept the same element across the change, so the browser kept it open. Giving it a `key` made from the decision makes React replace the element when the decision changes, and a new `<details>` starts closed. State that lives in the DOM is reset by replacing the node, not by setting a prop.
+
+2. **Why is a disabled button's tooltip on a wrapper and not on the button?**
+   A disabled button fires no mouse events, and the browser's own `title` tooltip takes over a second. The wrapper is hovered instead, with CSS only. The same sentence is also written beside the button, because a phone cannot hover.
+
+3. **How does the dark theme work without a `dark:` class on every element?**
+   Components name colours by scale step (`bg-slate-900`, `bg-red-50`). The dark theme redefines the scales themselves, mirrored, and `white` too, so each pair that had contrast keeps it. The cost: a newly used step needs a line in the dark block.
+
+4. **Every finding was rejected. What does the author get?**
+   A one-line review, "No changes needed", and a passing check with the same title. The first pass's summary is left out because it was written before the reviewer decided and often names the problems they turned down.
+
+5. **People did not know they could write their own finding. What changed?**
+   The "+" in the gutter was visible only on hover, which is found only by people who know to hover. It is now faintly visible on every line and fully visible on touch screens, and a tip above the code says so until it is dismissed.
+
+## Running it for a team
+
+**Read line by line:** `src/github/access.ts` (`PermissionCache`), `src/db/schema.ts` (`findingEvents`), `src/review/prioritize.ts`, `src/lib/budget.ts`, `src/github/run-review.ts`, `src/notify/review-ready.ts`, `src/lib/csv.ts`
+
+1. **Why is `finding_events.finding_id` not a foreign key?**
+   A finding a reviewer wrote can be deleted, and the record that it existed and was removed has to outlive it. A foreign key would either block the delete or delete the history with it.
+
+2. **The event is written after the change, not in a transaction. What can go wrong?**
+   The Neon HTTP driver has no interactive transactions. If the second write fails, the decision stands with no record of it. That order was chosen on purpose: the other order could record a decision that never happened, and failing the reviewer's click over an audit write is worse than a gap.
+
+3. **Access answers are cached for a minute. What is the trade?**
+   Fewer calls against the installation's rate limit and no GitHub round trip on every click, against a removed reviewer keeping access for up to a minute. For a review tool that is acceptable. The cache is per server instance; a cold instance asks once more.
+
+4. **A pull request is over the size limit. How are the files to review chosen?**
+   By a fixed ranking of path patterns: migrations and SQL, then authentication and tenancy, then endpoints, data access, deployment configuration, other code, and tests and docs last. Fixed patterns are free, the same every time, and explainable in one sentence. The model is told which files it was not shown, and the reviewer is told by name.
+
+5. **The monthly budget is used up. Why does the check end neutral and not failed?**
+   Nothing was found wrong with the code; it was not read. A team that requires the check would otherwise be unable to merge anything until the month ends. The dashboard says the review was skipped so a person reads it.
+
+6. **How can a "Run the review again" click and a webhook for the same commit not both run?**
+   Both go through `startGithubReview`, which claims the one row for that commit with a conditional write. The second caller sees a running review and stops. The click waits only for that claim, so the page it returns to already shows the review running.
+
+7. **Why does the CSV export put an apostrophe before some values?**
+   A cell that starts with `=`, `+`, `-` or `@` is run as a formula by a spreadsheet. Pull request titles and rejection reasons are typed by people, so a value like `=HYPERLINK(...)` is written as text. This is the same bug the sample pull request's CSV export had.
+
+8. **The notification goes to a chat channel. What is kept out of it?**
+   Code and the text of findings, because a channel is read by more people than the repository. The author-written title is escaped and cut, so it cannot mention the channel, add a link, or flood it.
+

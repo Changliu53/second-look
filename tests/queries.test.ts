@@ -398,6 +398,25 @@ describe("getEarlierDecisions over several rounds", () => {
   });
 });
 
+describe("critical count on a listed review", () => {
+  it("counts critical findings until they are rejected", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, review.id, completedResult(3));
+    const all = (await getReviewDetail(db, review.id))!.findings;
+    await db.update(findings).set({ severity: "critical" });
+    await db.update(findings).set({ severity: "nit" }).where(eq(findings.id, all[2]!.id));
+
+    const before = (await listOpenReviews(db))[0]!;
+    await decideFinding(db, all[0]!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, all[1]!.id, { status: "rejected", rejectionReason: null }, "lee");
+    const after = (await listOpenReviews(db))[0]!;
+
+    expect(before.criticalCount).toBe(2);
+    expect(after.criticalCount).toBe(1);
+  });
+});
+
 describe("rate limit rows", () => {
   it("are dropped once they are more than a day old, when a caller starts a new window", async () => {
     const now = new Date("2026-11-13T12:00:00Z");

@@ -140,3 +140,57 @@ export function summarizeDecisions(
     waitMinutes: summarizeWait(times),
   };
 }
+
+/** A line a team could add to .second-look.md, and why it is suggested. */
+export type RuleSuggestion = { rule: string; because: string };
+
+// Below this many decisions a share says too little to act on.
+const MIN_DECIDED = 5;
+// At or below this share confirmed, the findings are mostly noise to this team.
+const NOISY_RATE = 0.3;
+
+// The rule to add for each kind of finding a team keeps turning down. The
+// wording is a team rule the first pass already knows how to apply.
+const CATEGORY_RULES: Partial<Record<Category, string>> = {
+  style: "Do not report formatting or naming preferences. Only report style when it hides a bug.",
+  "missing-tests": "Do not ask for tests on configuration, copy, or one-line changes.",
+  "scope-creep": "Small related clean-ups in the same files are fine and are not scope creep.",
+  "error-handling": "Only report missing error handling where a failure would reach a user or lose data.",
+  logic: "Only report logic problems you can show with a concrete input and the wrong result it gives.",
+};
+
+const NIT_RULE = "Do not report nits. Report only problems a reviewer would ask the author to fix.";
+
+function percentOf(rate: number): string {
+  return `${Math.round(rate * 100)}%`;
+}
+
+/**
+ * Turns what reviewers keep rejecting into lines for the team rules file,
+ * which the first pass reads on every review. Only for kinds of finding with
+ * enough decisions to mean something, and only where a rule would help:
+ * a team that rejects most security findings needs to look at why, not to
+ * tell the first pass to stop looking.
+ */
+export function suggestRules(insights: Insights): RuleSuggestion[] {
+  const suggestions: RuleSuggestion[] = [];
+  for (const row of insights.byCategory) {
+    const rule = CATEGORY_RULES[row.key as Category];
+    const decided = row.confirmed + row.rejected;
+    if (rule && row.rate !== null && decided >= MIN_DECIDED && row.rate <= NOISY_RATE) {
+      suggestions.push({
+        rule,
+        because: `Reviewers confirmed ${percentOf(row.rate)} of ${decided} ${row.key} findings.`,
+      });
+    }
+  }
+  const nits = insights.bySeverity.find((row) => row.key === "nit");
+  if (nits && nits.rate !== null && nits.confirmed + nits.rejected >= MIN_DECIDED && nits.rate <= NOISY_RATE) {
+    suggestions.push({
+      rule: NIT_RULE,
+      because: `Reviewers confirmed ${percentOf(nits.rate)} of ${nits.confirmed + nits.rejected} nits.`,
+    });
+  }
+  return suggestions;
+}
+

@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { getSignedInLogin } from "@/auth";
 import { SiteHeader } from "@/components/site-header";
 import { LINK, SECTION_LABEL } from "@/components/ui";
-import type { Tally } from "@/dashboard/insights";
+import { suggestRules, type Tally } from "@/dashboard/insights";
+import { CopyButton } from "@/components/copy-button";
 import { getInsightsFor } from "@/dashboard/service";
 import { dashboardDeps } from "../deps";
 
@@ -96,6 +97,37 @@ function TallyTable({ caption, firstColumn, rows }: { caption: string; firstColu
   );
 }
 
+/** Lines a team could add to .second-look.md, from what they keep rejecting. */
+function RuleSuggestions({ rules }: { rules: ReturnType<typeof suggestRules> }) {
+  if (rules.length === 0) {
+    return null;
+  }
+  const text = rules.map((entry) => `- ${entry.rule}`).join("\n");
+  return (
+    <section className="mt-8 rounded-lg border border-blue-200 bg-accent-soft p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className={SECTION_LABEL}>Rules you could add</h2>
+          <p className="mt-1 text-sm leading-relaxed">
+            Reviewers keep turning these down. Adding the lines below to{" "}
+            <code className="font-mono text-xs">.second-look.md</code> on the main branch tells the
+            first pass to stop raising them.
+          </p>
+        </div>
+        <CopyButton text={text} label="Copy rules" />
+      </div>
+      <ul className="mt-3 space-y-2 text-sm">
+        {rules.map((entry) => (
+          <li key={entry.rule} className="rounded-md border border-edge bg-surface-raised px-3 py-2">
+            <p className="font-mono text-xs">- {entry.rule}</p>
+            <p className="mt-1 text-xs text-ink-soft">{entry.because}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * What reviewers did with the first pass's findings, across the repositories
  * the signed-in user may review. Read from stored decisions; no model call.
@@ -174,6 +206,8 @@ export default async function InsightsPage() {
 
             <TallyTable caption="By severity" firstColumn="Severity" rows={insights.bySeverity} />
             <TallyTable caption="By category" firstColumn="Category" rows={insights.byCategory} />
+
+            <RuleSuggestions rules={suggestRules(insights)} />
 
             {insights.rejectionReasons.length > 0 && (
               <section className="mt-8">

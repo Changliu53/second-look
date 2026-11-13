@@ -303,3 +303,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **Ranking:** A fixed list of path patterns: migrations and SQL first, then authentication, permissions and tenancy, then controllers, handlers and routes, then data access, then deployment configuration, then other code; tests, fixtures and documentation last. A test of an auth module counts as a test. Fixed patterns rather than a model call, so the choice is free, the same every time, and can be explained in one sentence.
 **Limit:** A risky change in a file with an ordinary name can be left out. The reviewer is told by name which files the first pass did not read.
 
+## 57. What reviewers keep rejecting becomes a suggested team rule
+**What:** The insights page suggests lines for `.second-look.md` when reviewers have decided at least five findings of a kind and confirmed 30% or fewer: style, missing tests, scope creep, error handling, logic, and nits. Each suggestion says which numbers it comes from, and the lines can be copied in one click.
+**Why:** The rules file is already how a team tells the first pass what it cares about, and the first pass reads it on every review. Rejections were the evidence for what to write in it, and nothing connected the two.
+**Never suggested:** turning off security, access-control, or data-loss findings. A team that rejects most of those has a different problem, and a rule to stop looking would hide it.
+**Rejected:** Changing the prompt automatically from rejections. A person reads and commits the rule, on the main branch, where the rest of the team can see and argue with it.
+

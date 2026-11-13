@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NO_REASON, summarizeDecisions, summarizeWait, type DecidedFinding } from "@/dashboard/insights";
+import {
+  NO_REASON,
+  suggestRules,
+  summarizeDecisions,
+  summarizeWait,
+  type DecidedFinding,
+} from "@/dashboard/insights";
 import type { FollowUpEntry } from "@/db/schema";
 
 function finding(overrides: Partial<DecidedFinding> = {}): DecidedFinding {
@@ -124,6 +130,51 @@ describe("summarizeWait", () => {
   it("is null when no review has both times", () => {
     expect(summarizeWait([])).toBeNull();
     expect(summarizeWait([{ completedAt: null, publishedAt: null }])).toBeNull();
+  });
+});
+
+describe("suggestRules", () => {
+  const many = (count: number, overrides: Partial<DecidedFinding>) =>
+    Array.from({ length: count }, () => finding(overrides));
+
+  it("suggests a rule for a kind of finding reviewers mostly reject", () => {
+    const rules = suggestRules(
+      summarizeDecisions([
+        ...many(4, { category: "style", status: "rejected" }),
+        ...many(1, { category: "style", status: "confirmed" }),
+      ]),
+    );
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.rule).toContain("formatting or naming");
+    expect(rules[0]?.because).toBe("Reviewers confirmed 20% of 5 style findings.");
+  });
+
+  it("says nothing on too few decisions, or when most are confirmed", () => {
+    expect(suggestRules(summarizeDecisions(many(4, { category: "style", status: "rejected" })))).toEqual([]);
+    expect(
+      suggestRules(
+        summarizeDecisions([
+          ...many(3, { category: "style", status: "rejected" }),
+          ...many(3, { category: "style", status: "confirmed" }),
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("never suggests to stop looking for security, access or data-loss problems", () => {
+    const rules = suggestRules(
+      summarizeDecisions([
+        ...many(10, { category: "security", status: "rejected" }),
+        ...many(10, { category: "access-control", status: "rejected" }),
+        ...many(10, { category: "data-loss", status: "rejected" }),
+      ]),
+    );
+    expect(rules).toEqual([]);
+  });
+
+  it("suggests dropping nits when reviewers reject most of them", () => {
+    const rules = suggestRules(summarizeDecisions(many(6, { severity: "nit", category: "bug", status: "rejected" })));
+    expect(rules.map((r) => r.rule)).toEqual(["Do not report nits. Report only problems a reviewer would ask the author to fix."]);
   });
 });
 

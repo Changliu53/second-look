@@ -18,6 +18,7 @@ import {
   repositories,
   reviews,
   type Finding,
+  type FollowUpEntry,
   type PullRequest,
   type Repository,
   type Review,
@@ -241,6 +242,7 @@ export async function completeReview(
   db: Database,
   reviewId: number,
   result: ReviewResult,
+  followUp: FollowUpEntry[] = [],
 ): Promise<boolean> {
   if (result.findings.length > 0) {
     await db.insert(findings).values(
@@ -265,6 +267,7 @@ export async function completeReview(
     .set({
       status: result.status,
       summary: result.summary,
+      followUp: followUp.length > 0 ? followUp : null,
       model: result.model,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
@@ -286,6 +289,76 @@ export async function failReview(
     .where(and(eq(reviews.id, reviewId), eq(reviews.status, "running")))
     .returning({ id: reviews.id });
   return updated.length === 1;
+}
+
+export type EarlierDecisions = {
+  headSha: string | null;
+  confirmed: Finding[];
+  rejected: Finding[];
+};
+
+/**
+ * The reviewer's decisions from earlier published reviews of this pull
+ * request at other commits, or null if there are none.
+ *
+ * - `confirmed` comes from the most recent of those reviews: it is the list
+ *   the author was last asked to fix, so it is what the new review verifies.
+ * - `rejected` comes from all of them. A finding the reviewer turned down in
+ *   round one must stay turned down in round three, even though round two
+ *   never raised it and so has no record of it.
+ */
+export async function getEarlierDecisions(
+  db: Database,
+  pullRequestId: number,
+  currentHeadSha: string,
+): Promise<EarlierDecisions | null> {
+  const published = await db
+    .select()
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.pullRequestId, pullRequestId),
+        isNotNull(reviews.publishedAt),
+        ne(reviews.headSha, currentHeadSha),
+      ),
+    )
+    .orderBy(desc(reviews.publishedAt));
+  const latest = published[0];
+  if (!latest) {
+    return null;
+  }
+
+  const decided = await db
+    .select()
+    .from(findings)
+    .where(
+      inArray(
+        findings.reviewId,
+        published.map((review) => review.id),
+      ),
+    )
+    .orderBy(findings.id);
+
+  return {
+    headSha: latest.headSha,
+    confirmed: decided.filter(
+      (finding) => finding.reviewId === latest.id && finding.status === "confirmed",
+    ),
+    rejected: uniqueByText(decided.filter((finding) => finding.status === "rejected")),
+  };
+}
+
+/** Drops repeats of the same finding on the same file, keeping the first. */
+function uniqueByText(list: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  return list.filter((finding) => {
+    const key = `${finding.filePath}\n${finding.explanation}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 /** Logs a paste-mode review. Only token usage is kept, never the pasted code. */
@@ -538,7 +611,11 @@ export async function editFinding(
 export async function claimReviewForPublish(
   db: Database,
   reviewId: number,
-  input: { publishedBy: string; reviewerNote: string | null },
+  input: {
+    publishedBy: string;
+    reviewerNote: string | null;
+    resolution: Review["resolution"];
+  },
 ): Promise<boolean> {
   const rows = await db
     .update(reviews)
@@ -554,7 +631,7 @@ export async function releasePublishClaim(
 ): Promise<void> {
   await db
     .update(reviews)
-    .set({ publishedAt: null, publishedBy: null, reviewerNote: null })
+    .set({ publishedAt: null, publishedBy: null, reviewerNote: null, resolution: null })
     .where(eq(reviews.id, reviewId));
 }
 

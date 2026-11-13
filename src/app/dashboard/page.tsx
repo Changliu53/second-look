@@ -106,7 +106,10 @@ function PublishedRow({ item }: { item: ReviewListItem }) {
       </Link>
       <span className="font-mono text-xs text-ink-soft">{pullLabel(item)}</span>
       <span className="text-xs text-ink-soft">
-        {item.confirmedCount} sent, by {item.review.publishedBy}
+        {item.confirmedCount} sent,{" "}
+        {item.review.resolution === "reviewer_takes_over"
+          ? `taken over by ${item.review.publishedBy}`
+          : `sent back by ${item.review.publishedBy}`}
       </span>
     </li>
   );

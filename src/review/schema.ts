@@ -58,10 +58,35 @@ export const summarySchema = z.object({
     .describe("Concrete things the author should verify before merging."),
 });
 
-/** The full shape the model must return. Validated on every response. */
-export const reviewOutputSchema = z.object({
+export const FOLLOW_UP_STATUSES = ["fixed", "still_present", "unclear"] as const;
+
+/**
+ * The model's verdict on one finding from the previous review of the same
+ * pull request: did the new commit fix it?
+ */
+export const followUpSchema = z.object({
+  id: z
+    .string()
+    .describe('The id of the earlier finding, exactly as given, for example "P12".'),
+  status: z.enum(FOLLOW_UP_STATUSES),
+  note: z
+    .string()
+    .describe("One sentence on what changed, or why it is still a problem."),
+});
+
+/** Summary and findings: what every review has. */
+export const reviewCoreSchema = z.object({
   summary: summarySchema,
   findings: z.array(findingSchema),
+});
+
+/** The full shape the model must return. Validated on every response. */
+export const reviewOutputSchema = reviewCoreSchema.extend({
+  followUp: z
+    .array(followUpSchema)
+    .describe(
+      "One entry per earlier confirmed finding you were given. Empty when there was no earlier review.",
+    ),
 });
 
 export type Severity = (typeof SEVERITIES)[number];
@@ -70,3 +95,6 @@ export type RiskLevel = (typeof RISK_LEVELS)[number];
 export type ReviewFinding = z.infer<typeof findingSchema>;
 export type ReviewSummary = z.infer<typeof summarySchema>;
 export type ReviewOutput = z.infer<typeof reviewOutputSchema>;
+export type ReviewCore = z.infer<typeof reviewCoreSchema>;
+export type FollowUp = z.infer<typeof followUpSchema>;
+export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];

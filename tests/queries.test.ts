@@ -7,6 +7,7 @@ import {
   decideFinding,
   editFinding,
   failReview,
+  getEarlierDecisions,
   getReviewDetail,
   listOpenReviews,
   listPublishedReviews,
@@ -38,6 +39,7 @@ function completedResult(findingCount: number): ReviewResult {
       suggestedFix: null,
       confidence: 0.9,
     })),
+    followUp: [],
     skippedFiles: [],
     usage: { inputTokens: 1200, outputTokens: 300 },
     model: "test-model",
@@ -104,7 +106,7 @@ describe("startGithubReview", () => {
     const { pullRequest } = await seedPullRequest(db);
     const old = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
     await completeReview(db, old.review.id, completedResult(0));
-    await claimReviewForPublish(db, old.review.id, { publishedBy: "lee", reviewerNote: null });
+    await claimReviewForPublish(db, old.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
 
     await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-2" });
 
@@ -275,7 +277,7 @@ describe("review lifecycle", () => {
     expect(open[0]).toMatchObject({ pendingCount: 2, confirmedCount: 1 });
     expect(open[0]?.repository.name).toBe("shop");
 
-    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "LGTM after fixes" });
+    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "LGTM after fixes", resolution: "author_fixes" });
     expect(await listOpenReviews(db)).toEqual([]);
   });
 
@@ -288,7 +290,7 @@ describe("review lifecycle", () => {
     await decideFinding(db, second!.id, { status: "rejected", rejectionReason: null }, "lee");
     expect(await listPublishedReviews(db, 10)).toEqual([]);
 
-    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: null });
+    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
 
     const published = await listPublishedReviews(db, 10);
     expect(published).toHaveLength(1);
@@ -301,8 +303,8 @@ describe("review lifecycle", () => {
     const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
     await completeReview(db, review.id, completedResult(0));
 
-    const first = await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: null });
-    const second = await claimReviewForPublish(db, review.id, { publishedBy: "kim", reviewerNote: null });
+    const first = await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+    const second = await claimReviewForPublish(db, review.id, { publishedBy: "kim", reviewerNote: null, resolution: "author_fixes" });
 
     expect([first, second]).toEqual([true, false]);
     expect((await getReviewDetail(db, review.id))?.review.publishedBy).toBe("lee");
@@ -312,12 +314,80 @@ describe("review lifecycle", () => {
     const { pullRequest } = await seedPullRequest(db);
     const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
     await completeReview(db, review.id, completedResult(0));
-    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "note" });
+    await claimReviewForPublish(db, review.id, { publishedBy: "lee", reviewerNote: "note", resolution: "author_fixes" });
 
     await releasePublishClaim(db, review.id);
 
     expect(await listOpenReviews(db)).toHaveLength(1);
-    expect(await claimReviewForPublish(db, review.id, { publishedBy: "kim", reviewerNote: null })).toBe(true);
+    expect(await claimReviewForPublish(db, review.id, { publishedBy: "kim", reviewerNote: null, resolution: "author_fixes" })).toBe(true);
+  });
+});
+
+describe("getEarlierDecisions", () => {
+  it("returns the decisions of the last published review at another commit", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const first = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, first.review.id, completedResult(3));
+    const [a, b] = (await getReviewDetail(db, first.review.id))!.findings;
+    await decideFinding(db, a!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, b!.id, { status: "rejected", rejectionReason: "Intended" }, "lee");
+
+    // Not published yet: a new review must not inherit undecided work.
+    expect(await getEarlierDecisions(db, pullRequest.id, "sha-2")).toBeNull();
+
+    await claimReviewForPublish(db, first.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+    const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-2");
+
+    expect(earlier?.headSha).toBe("sha-1");
+    expect(earlier?.confirmed.map((f) => f.id)).toEqual([a!.id]);
+    expect(earlier?.rejected.map((f) => f.rejectionReason)).toEqual(["Intended"]);
+    // The review of the same commit is not its own "earlier" review.
+    expect(await getEarlierDecisions(db, pullRequest.id, "sha-1")).toBeNull();
+  });
+});
+
+describe("getEarlierDecisions over several rounds", () => {
+  it("remembers a rejection from round one in round three", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    const publish = (reviewId: number) =>
+      claimReviewForPublish(db, reviewId, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+
+    // Round one: two findings, one confirmed, one rejected.
+    const one = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-1" });
+    await completeReview(db, one.review.id, completedResult(2));
+    const [kept, turnedDown] = (await getReviewDetail(db, one.review.id))!.findings;
+    await decideFinding(db, kept!.id, { status: "confirmed" }, "lee");
+    await decideFinding(db, turnedDown!.id, { status: "rejected", rejectionReason: "By design" }, "lee");
+    await publish(one.review.id);
+
+    // Round two: the rejected finding was not raised, so it has no row here.
+    const two = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "sha-2" });
+    await completeReview(db, two.review.id, completedResult(1));
+    const [again] = (await getReviewDetail(db, two.review.id))!.findings;
+    await decideFinding(db, again!.id, { status: "confirmed" }, "lee");
+    await publish(two.review.id);
+
+    const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
+
+    // Verified against the latest round only...
+    expect(earlier?.headSha).toBe("sha-2");
+    expect(earlier?.confirmed.map((f) => f.id)).toEqual([again!.id]);
+    // ...but the round-one rejection is still known.
+    expect(earlier?.rejected.map((f) => f.rejectionReason)).toEqual(["By design"]);
+  });
+
+  it("lists a finding rejected in two rounds once", async () => {
+    const { pullRequest } = await seedPullRequest(db);
+    for (const sha of ["sha-1", "sha-2"]) {
+      const round = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: sha });
+      await completeReview(db, round.review.id, completedResult(1));
+      const [finding] = (await getReviewDetail(db, round.review.id))!.findings;
+      await decideFinding(db, finding!.id, { status: "rejected", rejectionReason: "No" }, "lee");
+      await claimReviewForPublish(db, round.review.id, { publishedBy: "lee", reviewerNote: null, resolution: "author_fixes" });
+    }
+
+    const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
+    expect(earlier?.rejected).toHaveLength(1);
   });
 });
 

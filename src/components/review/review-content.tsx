@@ -3,8 +3,10 @@ import { LINK, SECTION_LABEL } from "@/components/ui";
 import { buildReviewView } from "@/dashboard/diff-view";
 import type { ReviewDetail } from "@/db/queries";
 import { parseUnifiedDiff } from "@/review/diff";
+import { getSkipReason } from "@/review/filters";
 import { DiffFile } from "./diff-file";
 import { FindingOutline } from "./finding-outline";
+import { FollowUpPanel } from "./follow-up-panel";
 import { FindingCard } from "./finding-card";
 
 /**
@@ -44,6 +46,10 @@ export function ReviewContent({
         </div>
       )}
 
+      {review.followUp && review.followUp.length > 0 && (
+        <FollowUpPanel entries={review.followUp} />
+      )}
+
       {detail.findings.length > 0 && (
         <div className="mt-4">
           <FindingOutline findings={detail.findings} />
@@ -60,6 +66,7 @@ export function ReviewContent({
         <DiffFile
           key={file.path}
           file={file}
+          skippedAs={getSkipReason(file.path, false) ?? undefined}
           renderFinding={(finding) => <FindingCard finding={finding} locked={locked} />}
         />
       ))}

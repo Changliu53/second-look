@@ -19,6 +19,9 @@ import { dashboardDeps } from "./deps";
  */
 
 const idSchema = z.coerce.number().int().positive();
+const resolutionSchema = z
+  .enum(["author_fixes", "reviewer_takes_over"])
+  .catch("author_fixes");
 
 function reviewPath(reviewId: number): string {
   return `/dashboard/reviews/${reviewId}`;
@@ -93,9 +96,17 @@ export async function publishReviewAction(formData: FormData): Promise<void> {
   const login = await requireLogin();
   const reviewId = idSchema.parse(formData.get("reviewId"));
   const note = formData.get("note");
+  // A missing or unknown value means the default: the author makes the fixes.
+  const resolution = resolutionSchema.parse(formData.get("resolution"));
   finish(
     reviewId,
-    await publishReviewFor(reviewId, typeof note === "string" ? note : null, login, dashboardDeps()),
+    await publishReviewFor(
+      reviewId,
+      typeof note === "string" ? note : null,
+      login,
+      dashboardDeps(),
+      resolution,
+    ),
   );
 }
 

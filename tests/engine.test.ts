@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ReviewError, reviewChange } from "@/review/engine";
+import { normalizeFollowUp, ReviewError, reviewChange } from "@/review/engine";
 import { FakeModel, VALID_SUMMARY } from "./helpers/fake-model";
 
 const LIMITS = { maxDiffChars: 2_000, maxContextChars: 500 };
@@ -192,5 +192,67 @@ describe("reviewChange", () => {
     const error = new ReviewError("model_refused", "declined");
     expect(error).toBeInstanceOf(Error);
     expect(error.code).toBe("model_refused");
+  });
+});
+
+describe("follow-up on an earlier review", () => {
+  const earlier = {
+    confirmed: [
+      { id: "P1", file: "src/cart.ts", startLine: 11, endLine: 11, explanation: "CONFIRMED_LOOP_BUG" },
+      { id: "P2", file: "src/cart.ts", startLine: 12, endLine: 12, explanation: "CONFIRMED_OTHER" },
+    ],
+    rejected: [
+      { id: "R3", file: "src/cart.ts", startLine: 10, endLine: 10, explanation: "REJECTED_STYLE", reason: "Team style allows it" },
+    ],
+  };
+
+  it("tells the model what the reviewer decided last time, inside a tagged section", async () => {
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [], followUp: [] });
+
+    await reviewChange({ diff: CART_DIFF, earlier }, model, LIMITS, "nonce123");
+    const user = model.prompts[0]?.user ?? "";
+    const section = user.slice(user.indexOf("<earlier_review-nonce123>"), user.indexOf("</earlier_review-nonce123>"));
+
+    expect(section).toContain("[P1] src/cart.ts, line 11: CONFIRMED_LOOP_BUG");
+    expect(section).toContain("[R3] src/cart.ts, line 10: REJECTED_STYLE Reviewer's reason: Team style allows it");
+    expect(user).toContain("Do not report a rejected finding again.");
+  });
+
+  it("says nothing about an earlier review when there was none", async () => {
+    const model = new FakeModel({ summary: VALID_SUMMARY, findings: [] });
+
+    const result = await reviewChange({ diff: CART_DIFF }, model, LIMITS);
+
+    expect(model.prompts[0]?.user).not.toContain("earlier_review");
+    expect(result.followUp).toEqual([]);
+  });
+
+  it("returns one verdict per earlier confirmed finding", async () => {
+    const model = new FakeModel({
+      summary: VALID_SUMMARY,
+      findings: [],
+      followUp: [
+        { id: "P1", status: "fixed", note: "The loop now uses <." },
+        { id: "P999", status: "fixed", note: "An id the model made up." },
+        { id: "R3", status: "fixed", note: "Rejected findings get no verdict." },
+      ],
+    });
+
+    const result = await reviewChange({ diff: CART_DIFF, earlier }, model, LIMITS);
+
+    expect(result.followUp).toEqual([
+      { id: "P1", status: "fixed", note: "The loop now uses <." },
+      // The model skipped P2, so the reviewer is told it is unknown, not fixed.
+      { id: "P2", status: "unclear", note: "The reviewer model did not say whether this was fixed." },
+    ]);
+  });
+
+  it("ignores verdicts when there was no earlier review", () => {
+    expect(normalizeFollowUp([{ id: "P1", status: "fixed", note: "x" }], undefined)).toEqual([]);
+  });
+
+  it("rejects output without a followUp list, like any other schema mismatch", async () => {
+    const raw = { name: "raw", generate: async () => ({ output: { summary: VALID_SUMMARY, findings: [] }, usage: { inputTokens: 1, outputTokens: 1 } }) };
+    await expect(reviewChange({ diff: CART_DIFF }, raw, LIMITS)).rejects.toMatchObject({ code: "invalid_model_output" });
   });
 });

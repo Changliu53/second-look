@@ -9,10 +9,12 @@ import {
   buildPrompt,
   createNonce,
   type BuiltPrompt,
+  type EarlierReview,
   type FileContext,
 } from "./prompt";
 import {
   reviewOutputSchema,
+  type FollowUp,
   type ReviewFinding,
   type ReviewSummary,
   type Severity,
@@ -40,6 +42,8 @@ export type ReviewInput = {
   /** Full contents of changed files at the PR head, used as extra context. */
   fileContents?: FileContext[];
   guidelines?: string;
+  /** Decisions from the previous review of the same pull request, if any. */
+  earlier?: EarlierReview;
 };
 
 export type ReviewLimits = {
@@ -56,6 +60,8 @@ export type ReviewResult = {
   status: "completed" | "too_large";
   summary: ReviewSummary;
   findings: ReviewFinding[];
+  /** Verdicts on the previous review's confirmed findings. */
+  followUp: FollowUp[];
   skippedFiles: SkippedFile[];
   usage: TokenUsage;
   /** Null when no model call was made. */
@@ -121,6 +127,7 @@ export function tooLargeResult(detail: string): ReviewResult {
     status: "too_large",
     summary: tooLargeSummary(detail),
     findings: [],
+    followUp: [],
     skippedFiles: [],
     usage: NO_USAGE,
     model: null,
@@ -190,6 +197,30 @@ export function normalizeFindings(
   return normalized.sort(compareFindings);
 }
 
+/**
+ * Keeps one verdict per earlier confirmed finding. The model may invent an id,
+ * repeat one, or skip one; a skipped finding is reported as "unclear" so the
+ * reviewer still sees it in the follow-up list.
+ */
+export function normalizeFollowUp(
+  followUp: FollowUp[],
+  earlier: EarlierReview | undefined,
+): FollowUp[] {
+  if (!earlier) {
+    return [];
+  }
+  return earlier.confirmed.map((finding) => {
+    const verdict = followUp.find((entry) => entry.id === finding.id);
+    return (
+      verdict ?? {
+        id: finding.id,
+        status: "unclear",
+        note: "The reviewer model did not say whether this was fixed.",
+      }
+    );
+  });
+}
+
 function compareFindings(a: ReviewFinding, b: ReviewFinding): number {
   const bySeverity = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
   if (bySeverity !== 0) {
@@ -220,6 +251,7 @@ export async function reviewChange(
       status: "completed",
       summary: nothingToReviewSummary(),
       findings: [],
+      followUp: [],
       skippedFiles: skipped,
       usage: NO_USAGE,
       model: null,
@@ -242,6 +274,7 @@ export async function reviewChange(
       title: input.title,
       description: input.description,
       guidelines: input.guidelines,
+      earlier: input.earlier,
       fileContexts: selectFileContexts(
         reviewable,
         input.fileContents ?? [],
@@ -267,6 +300,7 @@ export async function reviewChange(
     status: "completed",
     summary: parsed.data.summary,
     findings: normalizeFindings(parsed.data.findings, reviewable),
+    followUp: normalizeFollowUp(parsed.data.followUp, input.earlier),
     skippedFiles: skipped,
     usage,
     model: model.name,

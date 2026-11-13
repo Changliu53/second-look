@@ -17,11 +17,12 @@ import {
 } from "@/db/queries";
 import { checkRunFor } from "@/github/check-run";
 import type { GitHubClient } from "@/github/client";
-import { buildReviewPayload } from "@/github/publish";
+import { buildReviewPayload, type Resolution } from "@/github/publish";
 import type { PullRequestRef } from "@/lib/env";
 import { logEvent, safeErrorCode } from "@/lib/log";
 import { parseUnifiedDiff } from "@/review/diff";
 import { canReviewRepository } from "@/github/access";
+import { getDiffCached } from "./diff-cache";
 
 /**
  * Everything the dashboard can do, as plain functions. The Next.js pages and
@@ -123,7 +124,12 @@ export async function getReviewFor(
   // If GitHub is unreachable the findings are still shown, without the diff.
   let diff: string | null = null;
   try {
-    diff = await loaded.github.getPullRequestDiff(loaded.detail.repository, loaded.detail.pullRequest.number);
+    diff = await getDiffCached(
+      loaded.github,
+      loaded.detail.repository,
+      loaded.detail.pullRequest.number,
+      loaded.detail.review.headSha,
+    );
   } catch (error) {
     logEvent("dashboard_diff_fetch_failed", { reviewId, error: safeErrorCode(error) });
   }
@@ -248,6 +254,7 @@ export async function publishReviewFor(
   reviewerNote: string | null,
   login: string,
   deps: DashboardDeps,
+  resolution: Resolution = "author_fixes",
 ): Promise<ActionResult> {
   const loaded = await loadReviewFor(reviewId, login, deps);
   if (!loaded) {
@@ -264,7 +271,11 @@ export async function publishReviewFor(
   }
 
   const note = reviewerNote?.trim() ? reviewerNote.trim().slice(0, 2_000) : null;
-  const claimed = await claimReviewForPublish(deps.db, reviewId, { publishedBy: login, reviewerNote: note });
+  const claimed = await claimReviewForPublish(deps.db, reviewId, {
+    publishedBy: login,
+    reviewerNote: note,
+    resolution,
+  });
   if (!claimed) {
     return fail("already_published");
   }
@@ -278,6 +289,8 @@ export async function publishReviewFor(
       files: parseUnifiedDiff(diff),
       reviewerLogin: login,
       reviewerNote: note,
+      resolution,
+      pullRequestTitle: pullRequest.title,
     });
     const githubReviewId = await github.createReview(repository, pullRequest.number, payload);
     await recordGithubReviewId(deps.db, reviewId, githubReviewId);
@@ -297,6 +310,7 @@ export async function publishReviewFor(
           kind: "published",
           confirmedCount: confirmed.length,
           confirmedCriticalCount: confirmed.filter((f) => f.severity === "critical").length,
+          takenOverBy: resolution === "reviewer_takes_over" ? login : undefined,
         }),
       );
     } catch (error) {
@@ -305,6 +319,6 @@ export async function publishReviewFor(
     }
   }
 
-  logEvent("review_published", { reviewId, confirmed: confirmed.length });
+  logEvent("review_published", { reviewId, confirmed: confirmed.length, resolution });
   return { ok: true };
 }

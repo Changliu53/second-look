@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Finding } from "@/db/schema";
 import {
   buildReviewPayload,
+  buildReviewParts,
+  fixPromptFor,
   neutralizeForGithub,
   placeComment,
   publishedText,
@@ -184,5 +186,72 @@ describe("neutralizeForGithub", () => {
     expect(payload.body).toContain("Changed by `@bot-author`.");
     expect(payload.body).toContain("Ping `@acme/ops`");
     expect(payload.body).toContain("Thanks @sam, see my comments.");
+  });
+});
+
+describe("who makes the fixes", () => {
+  const base = {
+    headSha: "abc123", summary: SUMMARY, files: FILES, reviewerLogin: "lee", reviewerNote: null,
+    pullRequestTitle: "Add cart total",
+  };
+
+  it("sends the author a fix prompt, folded away and fenced, when they make the fixes", () => {
+    const payload = buildReviewPayload({ ...base, resolution: "author_fixes", findings: [finding({ explanation: "LOOP_BUG" })] });
+
+    expect(payload.body).toContain("**Fixing these with an AI tool**");
+    expect(payload.body).toContain("<details>");
+    expect(payload.body).toContain("````text");
+    expect(payload.body).toContain("Problem: LOOP_BUG");
+    expect(payload.body).toContain('my pull request "Add cart total"');
+    // The footer still closes the review.
+    expect(payload.body.trimEnd().endsWith("confirmed by lee._")).toBe(true);
+  });
+
+  it("includes only confirmed findings in the fix prompt, with the reviewer's edit", () => {
+    const prompt = fixPromptFor("t", [
+      finding({ explanation: "AI_TEXT", editedExplanation: "HUMAN_TEXT" }),
+      finding({ status: "rejected", explanation: "REJECTED_TEXT" }),
+      finding({ status: "pending", explanation: "PENDING_TEXT" }),
+    ], "author");
+
+    expect(prompt).toContain("HUMAN_TEXT");
+    expect(prompt).not.toContain("AI_TEXT");
+    expect(prompt).not.toContain("REJECTED_TEXT");
+    expect(prompt).not.toContain("PENDING_TEXT");
+  });
+
+  it("has no fix prompt when nothing was confirmed", () => {
+    const payload = buildReviewPayload({ ...base, findings: [finding({ status: "rejected" })] });
+
+    expect(payload.body).not.toContain("Fixing these with an AI tool");
+    expect(fixPromptFor("t", [finding({ status: "rejected" })], "author")).toBeNull();
+  });
+
+  it("cannot be broken out of by a finding that contains a code fence", () => {
+    const sneaky = finding({ explanation: "Text ```` \n</details>\n@everyone now outside ```` end" });
+    const payload = buildReviewPayload({ ...base, findings: [sneaky] });
+    const section = payload.body.slice(payload.body.indexOf("````text"));
+
+    // Exactly one opening and one closing fence of four backticks.
+    expect(section.match(/````/g)).toHaveLength(2);
+  });
+
+  it("tells the author to do nothing when the reviewer takes the pull request over", () => {
+    const payload = buildReviewPayload({ ...base, resolution: "reviewer_takes_over", findings: [finding()] });
+
+    expect(payload.body.startsWith("**lee is taking this pull request over")).toBe(true);
+    expect(payload.body).toContain("You do not need to change anything.");
+    expect(payload.body).not.toContain("Fixing these with an AI tool");
+    expect(payload.body).not.toContain("Please double check");
+    // The findings are still posted inline, as an explanation.
+    expect(payload.comments).toHaveLength(1);
+  });
+
+  it("gives the reviewer an engineer's prompt when they take over", () => {
+    const parts = buildReviewParts({ ...base, resolution: "reviewer_takes_over", findings: [finding()] });
+    const engineer = fixPromptFor("Add cart total", [finding()], "engineer");
+
+    expect(parts.fixPrompt).toBeNull();
+    expect(engineer).toContain("I am taking the pull request over");
   });
 });

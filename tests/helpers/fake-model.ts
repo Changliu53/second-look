@@ -17,8 +17,20 @@ export class FakeModel implements ReviewModel {
 
   async generate(prompt: BuiltPrompt) {
     this.prompts.push(prompt);
-    return { output: this.output, usage: this.usage };
+    return { output: withFollowUp(this.output), usage: this.usage };
   }
+}
+
+/**
+ * Most tests are not about follow-up, so an output written as
+ * { summary, findings } gets the empty followUp list a real response has.
+ * Outputs that already set followUp, or are not objects, pass through as is.
+ */
+function withFollowUp(output: unknown): unknown {
+  if (typeof output !== "object" || output === null || "followUp" in output) {
+    return output;
+  }
+  return { ...output, followUp: [] };
 }
 
 export const VALID_SUMMARY = {

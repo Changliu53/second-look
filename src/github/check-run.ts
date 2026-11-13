@@ -11,7 +11,13 @@ import type { CheckRunUpdate } from "./client";
 export type CheckState =
   | { kind: "reviewing" }
   | { kind: "awaiting_reviewer"; findingCount: number; tooLarge: boolean }
-  | { kind: "published"; confirmedCount: number; confirmedCriticalCount: number }
+  | {
+      kind: "published";
+      confirmedCount: number;
+      confirmedCriticalCount: number;
+      /** Set when the reviewer is fixing the pull request themselves. */
+      takenOverBy?: string;
+    }
   | { kind: "superseded" }
   | { kind: "failed" };
 
@@ -43,7 +49,9 @@ export function checkRunFor(state: CheckState): CheckRunUpdate {
           status: "completed",
           conclusion: "action_required",
           title: `${plural(state.confirmedCriticalCount, "critical finding")} to fix`,
-          summary: `A reviewer confirmed ${plural(state.confirmedCriticalCount, "critical finding")}. Push a fix to start a new review.`,
+          summary: state.takenOverBy
+            ? `A reviewer confirmed ${plural(state.confirmedCriticalCount, "critical finding")}. ${state.takenOverBy} has taken this pull request over and is making the fixes. The author does not need to do anything.`
+            : `A reviewer confirmed ${plural(state.confirmedCriticalCount, "critical finding")}. Push a fix to start a new review.`,
         };
       }
       return {

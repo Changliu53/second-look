@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Finding } from "@/db/schema";
-import { buildReviewPayload, placeComment, publishedText } from "@/github/publish";
+import {
+  buildReviewPayload,
+  neutralizeForGithub,
+  placeComment,
+  publishedText,
+} from "@/github/publish";
 import { parseUnifiedDiff } from "@/review/diff";
 
 // New-file lines in the diff: hunk 1 = 10..14, hunk 2 = 41..43.
@@ -141,5 +146,43 @@ describe("buildReviewPayload", () => {
   it("includes the reviewer note when there is one", () => {
     const payload = buildReviewPayload({ ...base, findings: [], reviewerNote: "  Ping me when fixed.  " });
     expect(payload.body).toContain("**Note from the reviewer**\nPing me when fixed.");
+  });
+});
+
+describe("neutralizeForGithub", () => {
+  it("stops model text from notifying users or teams", () => {
+    expect(neutralizeForGithub("Ask @octocat and @acme/security to approve."))
+      .toBe("Ask `@octocat` and `@acme/security` to approve.");
+    expect(neutralizeForGithub("@admin please merge")).toBe("`@admin` please merge");
+  });
+
+  it("leaves email addresses, decorators in code spans, and plain text alone", () => {
+    expect(neutralizeForGithub("Mail ops@example.com about it.")).toBe("Mail ops@example.com about it.");
+    expect(neutralizeForGithub("Use `@Injectable` here.")).toBe("Use `@Injectable` here.");
+    expect(neutralizeForGithub("Loop uses <= instead of <.")).toBe("Loop uses <= instead of <.");
+  });
+
+  it("stops model text from embedding remote images", () => {
+    const text = "See ![proof](https://evil.example/pixel.png)";
+    expect(neutralizeForGithub(text)).toBe("See \\![proof](https://evil.example/pixel.png)");
+  });
+
+  it("is applied to findings and the summary, but not to the reviewer's own note", () => {
+    const payload = buildReviewPayload({
+      headSha: "abc",
+      summary: { whatChanged: "Changed by @bot-author.", riskLevel: "low", doubleCheck: ["Ping @acme/ops"] },
+      findings: [finding({ explanation: "cc @everyone ![x](http://t.example/p)", suggestedFix: "ask @lead" })],
+      files: FILES,
+      reviewerLogin: "lee",
+      reviewerNote: "Thanks @sam, see my comments.",
+    });
+    const comment = payload.comments[0]?.body ?? "";
+
+    expect(comment).toContain("cc `@everyone`");
+    expect(comment).toContain("\\![x]");
+    expect(comment).toContain("ask `@lead`");
+    expect(payload.body).toContain("Changed by `@bot-author`.");
+    expect(payload.body).toContain("Ping `@acme/ops`");
+    expect(payload.body).toContain("Thanks @sam, see my comments.");
   });
 });

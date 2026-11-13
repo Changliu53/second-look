@@ -8,6 +8,7 @@ import {
   upsertPullRequest,
 } from "@/db/queries";
 import {
+  ACTION_ERRORS,
   decideFindingFor,
   editFindingFor,
   getDemoReview,
@@ -134,7 +135,7 @@ describe("publishReviewFor", () => {
 
     const outcome = await publishReviewFor(reviewId, null, "lee", deps);
 
-    expect(outcome).toEqual({ ok: false, error: "Confirm or reject every finding first (1 still pending)." });
+    expect(outcome).toEqual({ ok: false, error: "pending_findings" });
     expect(github.reviews).toEqual([]);
   });
 
@@ -182,7 +183,7 @@ describe("publishReviewFor", () => {
     const second = await publishReviewFor(reviewId, null, "lee", deps);
 
     expect(first.ok).toBe(true);
-    expect(second).toEqual({ ok: false, error: "This review is already published." });
+    expect(second).toEqual({ ok: false, error: "already_published" });
     expect(github.reviews).toHaveLength(1);
   });
 
@@ -213,7 +214,7 @@ describe("publishReviewFor", () => {
 
     const outcome = await publishReviewFor(reviewId, null, "lee", deps);
 
-    expect(outcome.ok).toBe(false);
+    expect(outcome).toEqual({ ok: false, error: "out_of_date" });
     expect(github.reviews).toEqual([]);
   });
 
@@ -225,8 +226,16 @@ describe("publishReviewFor", () => {
 
     const late = await decideFindingFor(critical!.id, { status: "rejected", rejectionReason: null }, "lee", deps);
 
-    expect(late).toEqual({ ok: false, error: "This review is already published." });
+    expect(late).toEqual({ ok: false, error: "already_published" });
     expect((await findings())[0]?.status).toBe("confirmed");
+  });
+});
+
+describe("action errors", () => {
+  it("has a readable message for every code the service can return", () => {
+    for (const message of Object.values(ACTION_ERRORS)) {
+      expect(message.length).toBeGreaterThan(10);
+    }
   });
 });
 

@@ -34,11 +34,27 @@ export type DashboardDeps = {
   githubFor: (installationId: number) => Promise<GitHubClient>;
 };
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+/**
+ * Why an action was refused. The code, not the sentence, travels in the URL
+ * back to the page, so a crafted link cannot make the dashboard display
+ * arbitrary text.
+ */
+export const ACTION_ERRORS = {
+  not_found: "That review or finding was not found.",
+  already_published: "This review is already published.",
+  out_of_date: "A newer commit was pushed. This review is out of date.",
+  not_finished: "This review did not finish, so there is nothing to publish.",
+  pending_findings: "Confirm or reject every finding before publishing.",
+  no_summary: "This review has no summary to publish.",
+  invalid_edit: "The explanation cannot be empty or longer than 5,000 characters.",
+  github_rejected: "GitHub did not accept the review. Nothing was published. Try again.",
+} as const;
 
-const fail = (error: string): ActionResult => ({ ok: false, error });
+export type ActionErrorCode = keyof typeof ACTION_ERRORS;
 
-const NOT_FOUND = "Review not found.";
+export type ActionResult = { ok: true } | { ok: false; error: ActionErrorCode };
+
+const fail = (error: ActionErrorCode): ActionResult => ({ ok: false, error });
 
 async function loadReviewFor(
   reviewId: number,
@@ -118,12 +134,12 @@ export async function getDemoReview(
   return { detail, diff };
 }
 
-function editableProblem(detail: ReviewDetail): string | null {
+function editableProblem(detail: ReviewDetail): ActionErrorCode | null {
   if (detail.review.publishedAt !== null) {
-    return "This review is already published.";
+    return "already_published";
   }
   if (detail.review.status === "superseded") {
-    return "A newer commit was pushed. This review is out of date.";
+    return "out_of_date";
   }
   return null;
 }
@@ -145,7 +161,7 @@ export async function decideFindingFor(
 ): Promise<ActionResult> {
   const loaded = await loadFindingFor(findingId, login, deps);
   if (!loaded) {
-    return fail("Finding not found.");
+    return fail("not_found");
   }
   const problem = editableProblem(loaded.detail);
   if (problem) {
@@ -172,11 +188,11 @@ export async function editFindingFor(
 ): Promise<ActionResult> {
   const edit = findingEditSchema.safeParse(rawEdit);
   if (!edit.success) {
-    return fail(edit.error.issues[0]?.message ?? "Invalid edit.");
+    return fail("invalid_edit");
   }
   const loaded = await loadFindingFor(findingId, login, deps);
   if (!loaded) {
-    return fail("Finding not found.");
+    return fail("not_found");
   }
   const problem = editableProblem(loaded.detail);
   if (problem) {
@@ -186,21 +202,20 @@ export async function editFindingFor(
   return { ok: true };
 }
 
-function publishProblem(detail: ReviewDetail): string | null {
+function publishProblem(detail: ReviewDetail): ActionErrorCode | null {
   const problem = editableProblem(detail);
   if (problem) {
     return problem;
   }
   if (detail.review.status !== "completed" && detail.review.status !== "too_large") {
-    return "This review did not finish, so there is nothing to publish.";
+    return "not_finished";
   }
   if (detail.review.headSha !== detail.pullRequest.headSha) {
-    return "A newer commit was pushed. This review is out of date.";
+    return "out_of_date";
   }
-  const pending = detail.findings.filter((finding) => finding.status === "pending").length;
-  if (pending > 0) {
-    // Publishing with undecided findings would silently drop them.
-    return `Confirm or reject every finding first (${pending} still pending).`;
+  // Publishing with undecided findings would silently drop them.
+  if (detail.findings.some((finding) => finding.status === "pending")) {
+    return "pending_findings";
   }
   return null;
 }
@@ -217,7 +232,7 @@ export async function publishReviewFor(
 ): Promise<ActionResult> {
   const loaded = await loadReviewFor(reviewId, login, deps);
   if (!loaded) {
-    return fail(NOT_FOUND);
+    return fail("not_found");
   }
   const { detail, github } = loaded;
   const problem = publishProblem(detail);
@@ -226,13 +241,13 @@ export async function publishReviewFor(
   }
   const { review, repository, pullRequest } = detail;
   if (review.summary === null || review.headSha === null) {
-    return fail("This review has no summary to publish.");
+    return fail("no_summary");
   }
 
   const note = reviewerNote?.trim() ? reviewerNote.trim().slice(0, 2_000) : null;
   const claimed = await claimReviewForPublish(deps.db, reviewId, { publishedBy: login, reviewerNote: note });
   if (!claimed) {
-    return fail("This review is already published.");
+    return fail("already_published");
   }
 
   try {
@@ -250,7 +265,7 @@ export async function publishReviewFor(
   } catch (error) {
     await releasePublishClaim(deps.db, reviewId);
     logEvent("publish_failed", { reviewId, error: safeErrorCode(error) });
-    return fail("GitHub did not accept the review. Nothing was published. Try again.");
+    return fail("github_rejected");
   }
 
   const confirmed = detail.findings.filter((finding) => finding.status === "confirmed");

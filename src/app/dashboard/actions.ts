@@ -36,7 +36,7 @@ async function requireLogin(): Promise<string> {
 function finish(reviewId: number, result: ActionResult): never {
   revalidatePath(reviewPath(reviewId));
   if (!result.ok) {
-    redirect(`${reviewPath(reviewId)}?error=${encodeURIComponent(result.error)}`);
+    redirect(`${reviewPath(reviewId)}?error=${result.error}`);
   }
   redirect(reviewPath(reviewId));
 }

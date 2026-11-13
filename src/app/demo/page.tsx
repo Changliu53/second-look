@@ -4,7 +4,9 @@ import { getDemoReview } from "@/dashboard/service";
 import { getDemoPullRequest } from "@/lib/env";
 import { dashboardDeps } from "../dashboard/deps";
 
-export const dynamic = "force-dynamic";
+// The page is public and each render calls the GitHub API, so it is cached
+// and rebuilt at most once every five minutes however many people open it.
+export const revalidate = 300;
 
 function NoDemo() {
   return (

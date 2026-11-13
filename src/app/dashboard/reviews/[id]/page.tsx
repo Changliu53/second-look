@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getSignedInLogin } from "@/auth";
 import { ReviewContent } from "@/components/review/review-content";
-import { getReviewFor } from "@/dashboard/service";
+import { ACTION_ERRORS, getReviewFor, type ActionErrorCode } from "@/dashboard/service";
 import { isStaleRunning, type ReviewDetail } from "@/db/queries";
 import { publishReviewAction } from "../../actions";
 import { dashboardDeps } from "../../deps";
@@ -81,7 +81,9 @@ export default async function ReviewPage({ params, searchParams }: PageProps) {
   }
 
   const { detail, diff } = loaded;
-  const { error } = await searchParams;
+  // Only known codes are shown. Anything else in the URL is ignored.
+  const errorCode = (await searchParams).error ?? "";
+  const error = errorCode in ACTION_ERRORS ? ACTION_ERRORS[errorCode as ActionErrorCode] : null;
   const reason = lockedReason(detail);
   const locked = reason !== null;
 

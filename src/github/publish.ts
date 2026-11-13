@@ -8,6 +8,22 @@ import type { ReviewComment, ReviewPayload } from "./client";
  * and no database, so the placement rules below are easy to test.
  */
 
+/**
+ * Makes model-written text safe to post on GitHub. A finding's text is shaped
+ * by the code under review, so a pull request could try to make the reviewer
+ * "say" something that GitHub then acts on:
+ * - "@someone" or "@org/team" would send notifications. Wrapped in backticks
+ *   it is shown as plain text.
+ * - "![](https://...)" would load an image from any server when the comment
+ *   is viewed. Escaped, it is shown as text.
+ * The reviewer's own note is not passed through this: a human wrote it.
+ */
+export function neutralizeForGithub(text: string): string {
+  return text
+    .replace(/(^|[^\w`])@([A-Za-z0-9][A-Za-z0-9/-]*)/g, "$1`@$2`")
+    .replace(/!\[/g, "\\![");
+}
+
 /** The text to publish: the reviewer's rewrite if there is one. */
 export function publishedText(finding: Finding): {
   explanation: string;
@@ -24,9 +40,13 @@ export function publishedText(finding: Finding): {
 
 function formatFinding(finding: Finding): string {
   const text = publishedText(finding);
-  const lines = [`**${finding.severity} · ${finding.category}**`, "", text.explanation];
+  const lines = [
+    `**${finding.severity} · ${finding.category}**`,
+    "",
+    neutralizeForGithub(text.explanation),
+  ];
   if (text.suggestedFix) {
-    lines.push("", `**Suggested fix:** ${text.suggestedFix}`);
+    lines.push("", `**Suggested fix:** ${neutralizeForGithub(text.suggestedFix)}`);
   }
   return lines.join("\n");
 }
@@ -77,14 +97,14 @@ function formatSummary(summary: ReviewSummary): string {
     "## Second Look review",
     "",
     "**What this pull request changes**",
-    summary.whatChanged,
+    neutralizeForGithub(summary.whatChanged),
     "",
     `**Risk:** ${summary.riskLevel}`,
   ];
   if (summary.doubleCheck.length > 0) {
     lines.push("", "**Please double check**");
     for (const item of summary.doubleCheck) {
-      lines.push(`- ${item}`);
+      lines.push(`- ${neutralizeForGithub(item)}`);
     }
   }
   return lines.join("\n");

@@ -109,7 +109,7 @@ describe("access control", () => {
 
 describe("review diff", () => {
   const repo = { owner: "acme", name: "shop" };
-  const current = { pullNumber: 7, headSha: "sha-2", currentHeadSha: "sha-2", baseRef: "main" };
+  const current = { pullNumber: 7, headSha: "sha-2", currentHeadSha: "sha-2", base: "base-sha" };
 
   it("asks GitHub once per commit, not once per page render", async () => {
     let calls = 0;
@@ -128,16 +128,26 @@ describe("review diff", () => {
     expect(calls).toBe(2);
   });
 
-  it("rebuilds the diff of an older commit against the base branch", async () => {
+  it("rebuilds the diff of an older commit against its recorded base", async () => {
     const diff = await getReviewDiff(github, repo, { ...current, headSha: "sha-1" });
 
     expect(diff).toBe(DIFF);
-    expect(github.commitDiffRequests).toEqual([{ baseRef: "main", headSha: "sha-1" }]);
+    expect(github.commitDiffRequests).toEqual([{ base: "base-sha", headSha: "sha-1" }]);
   });
 
-  it("returns no diff for an older commit when the base branch is unknown", async () => {
-    expect(await getReviewDiff(github, repo, { ...current, headSha: "sha-1", baseRef: null })).toBeNull();
+  it("returns no diff for an older commit when its base is unknown", async () => {
+    expect(await getReviewDiff(github, repo, { ...current, headSha: "sha-1", base: null })).toBeNull();
     expect(await getReviewDiff(github, repo, { ...current, headSha: null })).toBeNull();
+  });
+
+  it("treats an empty comparison as no diff and asks again next time", async () => {
+    // What GitHub returns for branch...oldCommit after the pull request merged.
+    github.commitDiff = "";
+    const older = { ...current, headSha: "sha-1" };
+
+    expect(await getReviewDiff(github, repo, older)).toBeNull();
+    github.commitDiff = DIFF;
+    expect(await getReviewDiff(github, repo, older)).toBe(DIFF);
   });
 });
 
@@ -340,8 +350,9 @@ describe("getDemoReview", () => {
     expect(latest?.detail.review.id).toBe(second.review.id);
     expect(latest?.diff).not.toBeNull();
     expect(first?.detail.review.id).toBe(reviewId);
-    // The seeded pull request has no base branch recorded, so the older
-    // round is shown without a diff instead of with the wrong one.
+    // Neither a base commit nor a base branch is recorded for the seeded
+    // pull request, so the older round is shown without a diff instead of
+    // with the wrong one.
     expect(first?.diff).toBeNull();
     expect(first?.rounds.map((r) => [r.confirmedCount, r.confirmedCriticalCount])).toEqual([[2, 1], [0, 0]]);
     expect(await getDemoReview(PULL, deps, 9)).toBeNull();

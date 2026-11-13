@@ -40,9 +40,9 @@ export interface GitHubClient {
   getPullRequestDiff(repo: RepoRef, pullNumber: number): Promise<string>;
   /**
    * The diff a pull request had at an earlier commit: everything on `headSha`
-   * since it branched from `baseRef`.
+   * since it split off from `base`, which is a commit or a branch name.
    */
-  getDiffAtCommit(repo: RepoRef, baseRef: string, headSha: string): Promise<string>;
+  getDiffAtCommit(repo: RepoRef, base: string, headSha: string): Promise<string>;
   /** Returns null when the file does not exist at that ref. */
   getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null>;
   createCheckRun(
@@ -107,7 +107,7 @@ class OctokitGitHubClient implements GitHubClient {
     }
   }
 
-  async getDiffAtCommit(repo: RepoRef, baseRef: string, headSha: string): Promise<string> {
+  async getDiffAtCommit(repo: RepoRef, base: string, headSha: string): Promise<string> {
     const response = await this.octokit.request(
       "GET /repos/{owner}/{repo}/compare/{basehead}",
       {
@@ -115,7 +115,7 @@ class OctokitGitHubClient implements GitHubClient {
         repo: repo.name,
         // Three dots: compare against the point where the branch split off,
         // which is what a pull request's diff shows.
-        basehead: `${baseRef}...${headSha}`,
+        basehead: `${base}...${headSha}`,
         mediaType: { format: "diff" },
       },
     );

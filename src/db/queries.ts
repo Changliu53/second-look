@@ -144,7 +144,7 @@ function isRetryable(review: Review, now: Date): boolean {
  */
 export async function startGithubReview(
   db: Database,
-  input: { pullRequestId: number; headSha: string },
+  input: { pullRequestId: number; headSha: string; baseSha?: string },
   now: Date = new Date(),
 ): Promise<{ review: Review; shouldRun: boolean }> {
   const inserted = await db
@@ -473,8 +473,8 @@ export async function listPublishedReviews(
   if (limit <= 0) {
     return [];
   }
-  const latestPerPullRequest = await db
-    .selectDistinctOn([reviews.pullRequestId], {
+  const rows = await db
+    .select({
       review: reviews,
       pullRequest: pullRequests,
       repository: repositories,
@@ -482,15 +482,19 @@ export async function listPublishedReviews(
     .from(reviews)
     .innerJoin(pullRequests, eq(reviews.pullRequestId, pullRequests.id))
     .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
-    .where(isNotNull(reviews.publishedAt))
-    // DISTINCT ON keeps the first row of each group, so within a pull
-    // request the newest publication has to come first.
-    .orderBy(reviews.pullRequestId, desc(reviews.publishedAt));
-
-  const newestFirst = latestPerPullRequest
-    .sort((a, b) => (b.review.publishedAt?.getTime() ?? 0) - (a.review.publishedAt?.getTime() ?? 0))
-    .slice(0, limit);
-  return withFindingCounts(db, newestFirst);
+    .where(
+      // Keep a review only if it is the newest published one of its pull
+      // request. Done in SQL so the database returns at most `limit` rows,
+      // however many pull requests have been reviewed.
+      sql`${reviews.publishedAt} = (
+        select max(newer.published_at)
+        from reviews newer
+        where newer.pull_request_id = ${reviews.pullRequestId}
+      )`,
+    )
+    .orderBy(desc(reviews.publishedAt))
+    .limit(limit);
+  return withFindingCounts(db, rows);
 }
 
 /** One published review in the history of a pull request. */

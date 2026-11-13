@@ -105,7 +105,7 @@ function diffTarget(detail: ReviewDetail): ReviewDiffTarget {
     pullNumber: detail.pullRequest.number,
     headSha: detail.review.headSha,
     currentHeadSha: detail.pullRequest.headSha,
-    baseRef: detail.pullRequest.baseRef,
+    base: detail.review.baseSha ?? detail.pullRequest.baseRef,
   };
 }
 

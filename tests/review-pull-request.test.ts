@@ -41,7 +41,7 @@ function event(headSha = "sha-1"): PullRequestEvent {
     number: 7,
     pull_request: {
       title: "Add checkout", body: "Adds the cart total.",
-      user: { login: "sam" }, head: { sha: headSha }, base: { ref: "main" },
+      user: { login: "sam" }, head: { sha: headSha }, base: { ref: "main", sha: "base-sha" },
     },
     repository: { id: 1001, name: "shop", owner: { login: "acme" } },
     installation: { id: 42 },
@@ -79,6 +79,7 @@ describe("reviewPullRequest", () => {
     const detail = await onlyReview();
     expect(detail.review.status).toBe("completed");
     expect(detail.review.headSha).toBe("sha-1");
+    expect(detail.review.baseSha).toBe("base-sha");
     expect(detail.findings).toHaveLength(1);
     expect(detail.findings[0]?.status).toBe("pending");
     expect(detail.pullRequest.authorLogin).toBe("sam");

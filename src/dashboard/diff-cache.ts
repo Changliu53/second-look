@@ -26,16 +26,24 @@ export type ReviewDiffTarget = {
   headSha: string | null;
   /** The pull request's newest commit. */
   currentHeadSha: string;
-  baseRef: string | null;
+  /**
+   * What to compare an older commit against: the base commit recorded when
+   * the review ran, or failing that the base branch's name.
+   */
+  base: string | null;
 };
 
 /**
  * The diff for a review, or null when it cannot be rebuilt.
  *
  * - A review of the newest commit uses the pull request's own diff.
- * - A review of an older commit compares that commit with the base branch.
- *   The pull request's current diff would show code the findings were not
+ * - A review of an older commit compares that commit with its base. The
+ *   pull request's current diff would show code the findings were not
  *   written about.
+ *
+ * Comparing against a branch name stops working once the pull request is
+ * merged: the old commit is then part of the branch, and the comparison is
+ * empty. An empty result is treated as "cannot rebuild" and is not cached.
  */
 export async function getReviewDiff(
   github: GitHubClient,
@@ -48,7 +56,7 @@ export async function getReviewDiff(
     return null;
   }
   const isCurrent = headSha === target.currentHeadSha;
-  if (!isCurrent && target.baseRef === null) {
+  if (!isCurrent && target.base === null) {
     return null;
   }
 
@@ -60,7 +68,10 @@ export async function getReviewDiff(
 
   const diff = isCurrent
     ? await github.getPullRequestDiff(repo, target.pullNumber)
-    : await github.getDiffAtCommit(repo, target.baseRef ?? "", headSha);
+    : await github.getDiffAtCommit(repo, target.base ?? "", headSha);
+  if (diff.trim() === "") {
+    return null;
+  }
   if (cache.size >= MAX_ENTRIES) {
     // Maps keep insertion order, so the first key is the oldest entry.
     const oldest = cache.keys().next().value;

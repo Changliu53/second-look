@@ -142,6 +142,10 @@ export const reviews = pgTable(
       { onDelete: "cascade" },
     ),
     headSha: text("head_sha"),
+    // The base branch's commit when this review ran. Comparing it with
+    // head_sha rebuilds the diff this review was written about, even after
+    // the pull request has been merged.
+    baseSha: text("base_sha"),
     status: reviewStatusEnum("status").notNull().default("running"),
     // What a running review is doing right now, shown live to the reviewer.
     stage: text("stage").$type<ReviewStage>(),

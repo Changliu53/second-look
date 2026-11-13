@@ -934,8 +934,19 @@ export async function incrementRateLimit(
       set: { count: sql`${rateLimits.count} + 1` },
     })
     .returning({ count: rateLimits.count });
-  return firstRow(rows, "rate limit upsert").count;
+  const count = firstRow(rows, "rate limit upsert").count;
+  if (count === 1) {
+    // A caller's first request in a new window: a cheap moment to drop
+    // windows that can no longer matter, so the table does not grow forever.
+    await db
+      .delete(rateLimits)
+      .where(sql`${rateLimits.windowStart} < ${new Date(windowStart.getTime() - RATE_LIMIT_KEEP_MS)}`);
+  }
+  return count;
 }
+
+// Rate limit windows are an hour long. A day of them is kept for looking into abuse.
+const RATE_LIMIT_KEEP_MS = 24 * 60 * 60 * 1000;
 
 /** Every repository the app has seen a pull request on. */
 export async function listRepositories(db: Database): Promise<Repository[]> {

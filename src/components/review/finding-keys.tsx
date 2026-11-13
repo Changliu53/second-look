@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { ReasonTip } from "@/components/reason-tip";
+import { rememberAddFindingTipSeen } from "./add-finding-tip";
 import { KBD } from "@/components/ui";
 
 /**
@@ -243,7 +244,16 @@ export function FindingKeys({
     window.addEventListener("click", handleClick);
     // The outline at the top links to findings by their id.
     window.addEventListener("hashchange", activateFromHash);
+    // Someone who submits the form for a finding of their own no longer
+    // needs the tip that says they can.
+    const onSubmit = (event: SubmitEvent) => {
+      if (event.target instanceof HTMLElement && event.target.matches("[data-composer]")) {
+        rememberAddFindingTipSeen();
+      }
+    };
+    window.addEventListener("submit", onSubmit);
     return () => {
+      window.removeEventListener("submit", onSubmit);
       window.removeEventListener("keydown", handleKey);
       window.removeEventListener("click", handleClick);
       window.removeEventListener("hashchange", activateFromHash);

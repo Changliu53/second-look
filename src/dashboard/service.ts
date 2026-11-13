@@ -139,8 +139,16 @@ async function allowedRepositories(
   deps: DashboardDeps,
 ): Promise<Repository[]> {
   const answers = await mapLimit(repositories, ACCESS_CHECKS_AT_ONCE, async (repository) => {
-    const github = await deps.githubFor(repository.installationId);
-    return mayReview(deps, github, repository, login);
+    try {
+      const github = await deps.githubFor(repository.installationId);
+      return await mayReview(deps, github, repository, login);
+    } catch (error) {
+      // The app was uninstalled from this repository's account, or GitHub
+      // did not answer for it. Leave this one repository out; the lists for
+      // every other repository must still load.
+      logEvent("access_check_failed", { repositoryId: repository.id, error: safeErrorCode(error) });
+      return false;
+    }
   });
   return repositories.filter((_, index) => answers[index]);
 }

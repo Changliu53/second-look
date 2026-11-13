@@ -8,6 +8,7 @@ import {
   setCheckRunId,
   startGithubReview,
   upsertPullRequest,
+  upsertRepository,
 } from "@/db/queries";
 import {
   ACTION_ERRORS,
@@ -67,6 +68,17 @@ let deps: DashboardDeps;
 let reviewId: number;
 let pullRequestId: number;
 let repositoryId: number;
+
+/** A second repository, on another installation, with one open review. */
+async function upsertRepositoryForTest() {
+  const repository = await upsertRepository(db, { githubRepoId: 2002, installationId: 77, owner: "other", name: "repo" });
+  const pullRequest = await upsertPullRequest(db, {
+    repositoryId: repository.id, number: 1, title: "Other", authorLogin: "sam", headSha: "o-1",
+  });
+  const { review } = await startGithubReview(db, { pullRequestId: pullRequest.id, headSha: "o-1" });
+  await completeReview(db, review.id, result());
+  return repository;
+}
 
 async function findings() {
   return (await getReviewDetail(db, reviewId))!.findings;
@@ -182,6 +194,26 @@ describe("editFindingFor", () => {
     expect(valid.ok).toBe(true);
     const [after] = await findings();
     expect(after).toMatchObject({ editedExplanation: "Clear text", editedSuggestedFix: null, status: "confirmed" });
+  });
+});
+
+describe("a repository whose installation no longer answers", () => {
+  it("is left out of the list without breaking the list for other repositories", async () => {
+    const other = await upsertRepositoryForTest();
+    const working = deps.githubFor;
+    deps = {
+      ...deps,
+      githubFor: async (installationId) => {
+        if (installationId === other.installationId) {
+          throw Object.assign(new Error("gone"), { status: 404 });
+        }
+        return working(installationId);
+      },
+    };
+
+    const list = await listReviewsFor("lee", deps);
+
+    expect(list.map((item) => item.repository.id)).toEqual([repositoryId]);
   });
 });
 

@@ -10,6 +10,7 @@ import {
   failReview,
   getEarlierDecisions,
   getReviewDetail,
+  incrementRateLimit,
   latestActivity,
   listFindingEvents,
   listOpenReviews,
@@ -26,7 +27,7 @@ import {
   upsertPullRequest,
   upsertRepository,
 } from "@/db/queries";
-import { findings, reviews } from "@/db/schema";
+import { findings, rateLimits, reviews } from "@/db/schema";
 import type { ReviewResult } from "@/review/engine";
 import { consumeHourlyLimit, hashClientIp, hourWindowStart } from "@/lib/rate-limit";
 import { createTestDb, seedPullRequest } from "./helpers/test-db";
@@ -394,6 +395,19 @@ describe("getEarlierDecisions over several rounds", () => {
 
     const earlier = await getEarlierDecisions(db, pullRequest.id, "sha-3");
     expect(earlier?.rejected).toHaveLength(1);
+  });
+});
+
+describe("rate limit rows", () => {
+  it("are dropped once they are more than a day old, when a caller starts a new window", async () => {
+    const now = new Date("2026-11-13T12:00:00Z");
+    await incrementRateLimit(db, "old-caller", new Date("2026-11-12T10:00:00Z"));
+    await incrementRateLimit(db, "recent-caller", new Date("2026-11-13T09:00:00Z"));
+
+    await incrementRateLimit(db, "new-caller", now);
+
+    const left = await db.select({ key: rateLimits.key }).from(rateLimits);
+    expect(left.map((row) => row.key).sort()).toEqual(["new-caller", "recent-caller"]);
   });
 });
 

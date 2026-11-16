@@ -27,12 +27,6 @@ const FILES = parseUnifiedDiff(`diff --git a/src/cart.ts b/src/cart.ts
  }
 `);
 
-const SUMMARY = {
-  whatChanged: "Changes the cart total loop.",
-  riskLevel: "high" as const,
-  doubleCheck: ["Check the total with two items."],
-};
-
 let nextId = 1;
 function finding(overrides: Partial<Finding> = {}): Finding {
   return {
@@ -89,7 +83,7 @@ describe("placeComment", () => {
 });
 
 describe("buildReviewPayload", () => {
-  const base = { headSha: "abc123", summary: SUMMARY, files: FILES, reviewerLogin: "lee", reviewerNote: null };
+  const base = { headSha: "abc123", files: FILES, reviewerLogin: "lee", reviewerNote: null };
 
   it("publishes confirmed findings only", () => {
     const payload = buildReviewPayload({
@@ -108,15 +102,30 @@ describe("buildReviewPayload", () => {
     expect(everything).not.toContain("PENDING_ONE");
   });
 
-  it("puts the plain-English summary at the top of the review body", () => {
+  it("opens with what the reviewer confirmed, written from the decisions alone", () => {
     const payload = buildReviewPayload({ ...base, findings: [finding()] });
 
     expect(payload.commitId).toBe("abc123");
     expect(payload.body.startsWith("## Second Look review")).toBe(true);
-    expect(payload.body).toContain("Changes the cart total loop.");
-    expect(payload.body).toContain("**Risk:** high");
-    expect(payload.body).toContain("- Check the total with two items.");
+    expect(payload.body).toContain("**1 thing to fix.** lee checked the first pass and confirmed this finding.");
     expect(payload.body).toContain("1 finding confirmed by lee");
+  });
+
+  it("never sends the first pass's summary, which can describe a rejected finding", () => {
+    // The model writes its summary before anyone decides. A reviewer who
+    // rejects "no tenant check in CloseAsync" must not see the author told
+    // to double check exactly that.
+    const payload = buildReviewPayload({
+      ...base,
+      findings: [
+        finding({ explanation: "CONFIRMED_ONE" }),
+        finding({ status: "rejected", explanation: "No tenant check in CloseAsync", startLine: 12, endLine: 12 }),
+      ],
+    });
+
+    expect(payload.body).not.toContain("**Risk:**");
+    expect(payload.body).not.toContain("Please double check");
+    expect(JSON.stringify(payload)).not.toContain("CloseAsync");
   });
 
   it("reads as an approval when nothing was confirmed, without the first pass's summary", () => {
@@ -125,12 +134,7 @@ describe("buildReviewPayload", () => {
       findings: [finding({ status: "rejected", explanation: "REJECTED_ONE" })],
     });
 
-    expect(payload.body.startsWith("**No changes needed.** lee reviewed this pull request")).toBe(true);
-    // The summary was written before the reviewer decided and can name the
-    // problems they turned down, so an approval leaves it out.
-    expect(payload.body).not.toContain("Changes the cart total loop.");
-    expect(payload.body).not.toContain("**Risk:**");
-    expect(payload.body).not.toContain("Check the total with two items.");
+    expect(payload.body).toContain("**No changes needed.** lee reviewed this pull request");
     expect(payload.body).not.toContain("REJECTED_ONE");
     expect(payload.body).not.toContain("Fix these with your AI tool");
     expect(payload.body.trimEnd().endsWith("checked by lee._")).toBe(true);
@@ -187,10 +191,9 @@ describe("neutralizeForGithub", () => {
     expect(neutralizeForGithub(text)).toBe("See \\![proof](https://evil.example/pixel.png)");
   });
 
-  it("is applied to findings and the summary, but not to the reviewer's own note", () => {
+  it("is applied to findings, but not to the reviewer's own note", () => {
     const payload = buildReviewPayload({
       headSha: "abc",
-      summary: { whatChanged: "Changed by @bot-author.", riskLevel: "low", doubleCheck: ["Ping @acme/ops"] },
       findings: [finding({ explanation: "cc @everyone ![x](http://t.example/p)", suggestedFix: "ask @lead" })],
       files: FILES,
       reviewerLogin: "lee",
@@ -201,15 +204,13 @@ describe("neutralizeForGithub", () => {
     expect(comment).toContain("cc `@everyone`");
     expect(comment).toContain("\\![x]");
     expect(comment).toContain("ask `@lead`");
-    expect(payload.body).toContain("Changed by `@bot-author`.");
-    expect(payload.body).toContain("Ping `@acme/ops`");
     expect(payload.body).toContain("Thanks @sam, see my comments.");
   });
 });
 
 describe("who makes the fixes", () => {
   const base = {
-    headSha: "abc123", summary: SUMMARY, files: FILES, reviewerLogin: "lee", reviewerNote: null,
+    headSha: "abc123", files: FILES, reviewerLogin: "lee", reviewerNote: null,
     pullRequestTitle: "Add cart total",
   };
 
@@ -260,7 +261,7 @@ describe("who makes the fixes", () => {
   it("tells the author to do nothing when the reviewer takes the pull request over", () => {
     const payload = buildReviewPayload({ ...base, resolution: "reviewer_takes_over", findings: [finding()] });
 
-    expect(payload.body.startsWith("**lee is taking this pull request over")).toBe(true);
+    expect(payload.body).toContain("**lee is taking this pull request over");
     expect(payload.body).toContain("You do not need to change anything.");
     expect(payload.body).not.toContain("Fix these with your AI tool");
     expect(payload.body).not.toContain("Please double check");

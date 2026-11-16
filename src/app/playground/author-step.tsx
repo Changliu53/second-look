@@ -15,7 +15,6 @@ import {
 } from "@/github/publish";
 import type { FileDiff } from "@/review/diff";
 import { PASTED_FILE_NAME } from "@/review/paste";
-import type { ReviewSummary } from "@/review/schema";
 import { CheckStatus } from "./check-status";
 
 // In the preview text a real reviewer's GitHub login would appear here.
@@ -28,7 +27,6 @@ const PREVIEW_REVIEWER = "The reviewer";
  */
 export function AuthorStep({
   title,
-  summary,
   findings,
   files,
   resolution,
@@ -36,7 +34,6 @@ export function AuthorStep({
   onStartOver,
 }: {
   title: string;
-  summary: ReviewSummary;
   findings: Finding[];
   files: FileDiff[];
   resolution: Resolution;
@@ -50,7 +47,6 @@ export function AuthorStep({
   const takenOver = !approved && resolution === "reviewer_takes_over";
   const parts = buildReviewParts({
     headSha: "",
-    summary,
     findings,
     files,
     reviewerLogin: PREVIEW_REVIEWER,

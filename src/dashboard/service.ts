@@ -505,7 +505,6 @@ export async function publishReviewFor(
     const diff = await github.getPullRequestDiff(repository, pullRequest.number);
     const payload = buildReviewPayload({
       headSha: review.headSha,
-      summary: review.summary,
       findings: detail.findings,
       files: parseUnifiedDiff(diff),
       reviewerLogin: login,

@@ -321,3 +321,9 @@ One entry per real design choice: what, why, and the alternative that was reject
 **What is not sent:** code and the text of findings. A chat channel is read by more people than the repository is. The title is written by the pull request's author, so it is escaped and cut to 200 characters: it cannot mention a channel, add a link, or flood the channel.
 **Details:** https only. Five-second timeout. A failure is logged and ignored, so a chat outage never fails a review.
 
+
+## 60. The first pass's summary is not sent to the author
+**What:** The published review holds a line written from the reviewer's decisions ("2 things to fix. lee checked the first pass and confirmed these findings."), the reviewer's note, the confirmed findings, and the fix prompt. The model's summary, risk level, and "Please double check" list stay on the review page, labelled "First pass summary" and "For you. It is not sent to the author."
+**Why:** The model writes the summary in the same call as the findings, before anyone decides. A reviewer rejected "CloseAsync has no tenant check", and the published review still told the author to double check closing another company's work order. That broke the rule the product rests on: nothing reaches the author that a person has not decided on. Approvals already left the summary out for this reason (entry 50); this does the same for every review.
+**Rejected:** Asking the model to rewrite the summary after the decisions (another paid call, and more model text nobody checks). Letting the reviewer edit the summary before publishing (a second thing to review on every pull request; the reviewer's note already covers anything they want to add).
+**Lost:** A non-engineer author no longer gets the plain-English description of their own change. They wrote it, so the loss is small. A partial review's list of unread files is now seen by the reviewer only, who is the one who has to read them.

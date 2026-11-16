@@ -1,7 +1,6 @@
 import type { Finding } from "@/db/schema";
 import { commentableLines, hunkIndexOfLine, type FileDiff } from "@/review/diff";
 import { buildFixPrompt, type FixPromptAudience } from "@/review/fix-prompt";
-import type { ReviewSummary } from "@/review/schema";
 import type { ReviewComment, ReviewPayload } from "./client";
 
 /**
@@ -93,22 +92,14 @@ export function placeComment(finding: Finding, files: FileDiff[]): ReviewComment
   return null;
 }
 
-function formatSummary(summary: ReviewSummary): string {
-  const lines = [
-    "## Second Look review",
-    "",
-    "**What this pull request changes**",
-    neutralizeForGithub(summary.whatChanged),
-    "",
-    `**Risk:** ${summary.riskLevel}`,
-  ];
-  if (summary.doubleCheck.length > 0) {
-    lines.push("", "**Please double check**");
-    for (const item of summary.doubleCheck) {
-      lines.push(`- ${neutralizeForGithub(item)}`);
-    }
-  }
-  return lines.join("\n");
+/**
+ * The opening line when there is something to fix. It is written from the
+ * reviewer's decisions only. The first pass's summary is not sent: it is
+ * written before the reviewer decides, so it can describe a finding the
+ * reviewer rejected, and the author would read it as something to act on.
+ */
+function fixesNotice(reviewerLogin: string, count: number): string {
+  return `**${count} thing${count === 1 ? "" : "s"} to fix.** ${reviewerLogin} checked the first pass and confirmed ${count === 1 ? "this finding" : "these findings"}. Each one is a comment on the lines it is about.`;
 }
 
 function formatUnplacedFinding(finding: Finding): string {
@@ -186,7 +177,6 @@ function takeOverNotice(reviewerLogin: string): string {
 
 export type PublishInput = {
   headSha: string;
-  summary: ReviewSummary;
   /** Every finding of the review. Only confirmed ones are published. */
   findings: Finding[];
   /** The PR diff as GitHub reports it now. */
@@ -230,18 +220,15 @@ export function buildReviewParts(input: PublishInput): ReviewParts {
   // nothing to fix, so nobody is fixing it.
   const nothingToFix = confirmed.length === 0;
   const takenOver = !nothingToFix && input.resolution === "reviewer_takes_over";
-  const sections: string[] = [];
+  // Only text a person has decided on reaches the author: the notice, the
+  // reviewer's note, and the confirmed findings. No first-pass summary.
+  const sections: string[] = ["## Second Look review"];
   if (nothingToFix) {
     sections.push(noChangesNotice(input.reviewerLogin));
   } else if (takenOver) {
     sections.push(takeOverNotice(input.reviewerLogin));
-  }
-  // An approval leaves the first pass's summary out. It is written before
-  // the reviewer decides, and often names the very problems the reviewer
-  // turned down, which reads as a contradiction under "No changes needed".
-  if (!nothingToFix) {
-    // When the reviewer fixes it, the author has nothing to double check.
-    sections.push(formatSummary(takenOver ? { ...input.summary, doubleCheck: [] } : input.summary));
+  } else {
+    sections.push(fixesNotice(input.reviewerLogin, confirmed.length));
   }
   if (input.reviewerNote?.trim()) {
     sections.push(`**Note from the reviewer**\n${input.reviewerNote.trim()}`);

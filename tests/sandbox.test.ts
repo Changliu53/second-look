@@ -64,7 +64,6 @@ describe("sandbox findings", () => {
 
     const payload = buildReviewPayload({
       headSha: "", findings, files, reviewerLogin: "you", reviewerNote: null,
-      summary: { whatChanged: "x", riskLevel: "high", doubleCheck: [] },
     });
     const everything = JSON.stringify(payload);
 
@@ -95,7 +94,6 @@ describe("a finding the visitor adds", () => {
 
     const payload = buildReviewPayload({
       headSha: "", findings, files, reviewerLogin: "you", reviewerNote: null,
-      summary: { whatChanged: "x", riskLevel: "high", doubleCheck: [] },
     });
 
     expect(JSON.stringify(payload)).toContain("MY_OWN_FINDING");

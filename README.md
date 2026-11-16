@@ -38,7 +38,7 @@ flowchart LR
    ![A finding the reviewer wrote on a line of the diff, above one from the first pass](docs/add-finding.jpg)
 
 4. **The engineer publishes and chooses who fixes it.**
-   - *Send back to the author.* One GitHub review with the confirmed findings, a plain-English summary, and a prompt the author can paste into their AI tool. The prompt is in the review body under "Fix these with your AI tool". It lists each finding with its file and lines and tells the tool to change nothing else.
+   - *Send back to the author.* One GitHub review with the confirmed findings, your note if you wrote one, and a prompt the author can paste into their AI tool. The prompt is in the review body under "Fix these with your AI tool". It lists each finding with its file and lines and tells the tool to change nothing else. The first pass's own summary is not sent, since it is written before you decide.
    - *I will fix it myself.* The author is told they do not need to do anything. The reviewer gets a checkout command and a prompt written for an engineer's coding agent.
 
    ![The publish form: send back to the author, or fix it myself](docs/publish-modes.jpg)

@@ -31,7 +31,9 @@ function Composer({ reviewId, target }: { reviewId: number; target: ComposeTarge
       <FindingFields startLine={target.line} />
       <div className="mt-3 flex items-center gap-3">
         <SubmitButton className={BUTTON_PRIMARY}>Add finding</SubmitButton>
-        <Link data-cancel href={`/dashboard/reviews/${reviewId}`} className={`${LINK} text-sm`}>
+        {/* scroll={false}: closing the form keeps the reader where they were.
+            Without it the router treats this as a new page and goes to the top. */}
+        <Link data-cancel scroll={false} href={`/dashboard/reviews/${reviewId}`} className={`${LINK} text-sm`}>
           Cancel
         </Link>
         <span className="hidden text-xs text-ink-soft sm:inline">

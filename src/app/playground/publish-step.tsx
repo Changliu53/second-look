@@ -120,7 +120,7 @@ export function PublishStep({
       <header>
         <h2 className="text-lg font-semibold tracking-tight">Publish the review</h2>
         <p className="mt-1 text-sm leading-relaxed text-slate-600">
-          Until now nothing has reached the author. Publishing posts the summary and{" "}
+          Until now nothing has reached the author. Publishing posts the{" "}
           {plural(confirmed.length, "confirmed finding")} to the pull request as one review.{" "}
           {rejected > 0 &&
             `The ${plural(rejected, "rejected finding")} ${rejected === 1 ? "is" : "are"} not shown to the author. `}

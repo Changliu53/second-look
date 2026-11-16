@@ -403,7 +403,7 @@ const STEPS = [
   },
   {
     title: "The author hears from you once",
-    body: "One GitHub review with only what you confirmed, a plain-English summary, and a check that blocks the merge while a critical finding stands.",
+    body: "One GitHub review with only what you confirmed, and a check that blocks the merge while a critical finding stands.",
   },
 ];
 
@@ -595,7 +595,6 @@ function ResultPane({
         {step === "author" && published && (
           <AuthorStep
             title={review.title}
-            summary={review.summary}
             findings={findings}
             files={files}
             resolution={published}

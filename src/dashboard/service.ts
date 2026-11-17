@@ -501,6 +501,7 @@ export async function publishReviewFor(
     return fail("already_published");
   }
 
+  let githubReviewId: number;
   try {
     const diff = await github.getPullRequestDiff(repository, pullRequest.number);
     const payload = buildReviewPayload({
@@ -512,12 +513,19 @@ export async function publishReviewFor(
       resolution,
       pullRequestTitle: pullRequest.title,
     });
-    const githubReviewId = await github.createReview(repository, pullRequest.number, payload);
-    await recordGithubReviewId(deps.db, reviewId, githubReviewId);
+    githubReviewId = await github.createReview(repository, pullRequest.number, payload);
   } catch (error) {
     await releasePublishClaim(deps.db, reviewId);
     logEvent("publish_failed", { reviewId, error: safeErrorCode(error) });
     return fail("github_rejected");
+  }
+  try {
+    await recordGithubReviewId(deps.db, reviewId, githubReviewId);
+  } catch (error) {
+    // The review is on the pull request. Keep the claim: releasing it here
+    // would let a second click post the same review again. Only the link to
+    // GitHub's copy is missing.
+    logEvent("github_review_id_not_recorded", { reviewId, error: safeErrorCode(error) });
   }
 
   const confirmed = detail.findings.filter((finding) => finding.status === "confirmed");

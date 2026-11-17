@@ -12,6 +12,11 @@ const MAX_OUTPUT_TOKENS = 16_000;
 // Vercel. Give up before that so we can record the failure ourselves.
 const REQUEST_TIMEOUT_MS = 240_000;
 
+// The SDK's timeout is per attempt, and it tries a second time after a
+// timeout or a 5xx. This is the limit on all attempts together, so a retry
+// cannot run past the function's 300 seconds and leave the review "running".
+const TOTAL_DEADLINE_MS = 260_000;
+
 /**
  * ReviewModel backed by the Anthropic Messages API.
  *
@@ -63,13 +68,16 @@ export class AnthropicReviewModel implements ReviewModel {
 
   private async requestReview(prompt: BuiltPrompt) {
     try {
-      return await this.client.messages.parse({
-        model: this.name,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        system: prompt.system,
-        messages: [{ role: "user", content: prompt.user }],
-        output_config: { format: zodOutputFormat(reviewOutputSchema) },
-      });
+      return await this.client.messages.parse(
+        {
+          model: this.name,
+          max_tokens: MAX_OUTPUT_TOKENS,
+          system: prompt.system,
+          messages: [{ role: "user", content: prompt.user }],
+          output_config: { format: zodOutputFormat(reviewOutputSchema) },
+        },
+        { signal: AbortSignal.timeout(TOTAL_DEADLINE_MS) },
+      );
     } catch (error) {
       if (error instanceof Anthropic.APIError) {
         // Keep the status code only. The message can echo parts of the request.

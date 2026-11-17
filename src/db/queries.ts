@@ -6,7 +6,9 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   ne,
+  or,
   sql,
 } from "drizzle-orm";
 import type { ReviewResult } from "@/review/engine";
@@ -206,15 +208,32 @@ export async function startGithubReview(
     return { review: existing, shouldRun: false };
   }
 
-  // Findings from the crashed attempt would otherwise be duplicated.
-  await db.delete(findings).where(eq(findings.reviewId, existing.id));
+  // One conditional UPDATE claims the retry. Two people pressing "Run the
+  // review again" at the same moment both get here; the second one's UPDATE
+  // matches no row, because the first already made the review "running"
+  // with a fresh start time.
+  const staleBefore = new Date(now.getTime() - STALE_REVIEW_MS);
   const reset = await db
     .update(reviews)
     .set({ status: "running", stage: null, errorMessage: null, createdAt: now })
-    .where(eq(reviews.id, existing.id))
+    .where(
+      and(
+        eq(reviews.id, existing.id),
+        or(
+          eq(reviews.status, "failed"),
+          and(eq(reviews.status, "running"), lt(reviews.createdAt, staleBefore)),
+        ),
+      ),
+    )
     .returning();
+  const claimed = reset[0];
+  if (!claimed) {
+    return { review: existing, shouldRun: false };
+  }
+  // Findings from the crashed attempt would otherwise be duplicated.
+  await db.delete(findings).where(eq(findings.reviewId, existing.id));
   await supersedeOlderReviews(db, input.pullRequestId, existing.id);
-  return { review: firstRow(reset, "review reset"), shouldRun: true };
+  return { review: claimed, shouldRun: true };
 }
 
 /**
